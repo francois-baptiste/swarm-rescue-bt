@@ -1,64 +1,82 @@
-# Essaim décentralisé de recherche & sauvetage (démo)
+# swarm-rescue-bt
 
-Démo autonome en Python pur (pas de ROS2/Nav2/Gazebo requis) pour valider un
-principe d'architecture avant de l'implémenter sur une vraie stack robotique :
+A decentralized multi-robot search & rescue simulation, written in pure
+Python with **no ROS2 / Nav2 / Gazebo dependency**. It exists to validate
+a coordination architecture — behavior trees driving fully local decisions,
+with no central arbiter — before porting it onto a real robotics stack.
 
-- **`bt/core.py`** — moteur de behavior tree fait maison (Sequence, Selector,
-  Condition, Action), calqué sur la taxonomie de BehaviorTree.CPP / Nav2
-  (`nav2_behavior_tree`). Chaque robot exécute son propre arbre, tické une
-  fois par pas de temps.
-- **`swarm/world.py`** — grille 2D avec obstacles + BFS, qui joue le rôle du
-  planificateur global + contrôleur local de Nav2 (donner un chemin vers un
-  objectif, avancer d'une cellule).
-- **`swarm/comms.py`** — bus radio simulé (broadcast à portée limitée, un
-  tick de latence). Aucun arbitre : ce fichier ne décide jamais rien, il
-  ne fait que propager des messages.
-- **`swarm/robot.py`** — un robot = un arbre de comportement + un état
-  purement local (position, ce qu'il a vu, ce qu'il a entendu). La
-  coordination émerge de la règle "je réclame ce que je vois et qui n'est
-  pas déjà activement réclamé" + "une réclamation sans nouvelle depuis
-  15 ticks est considérée périmée" (tolérance de panne, type contract-net
-  simplifié).
-- **`sim.py`** — scénario : 3 robots terrestres partent de coins opposés
-  d'une carte 15x15 avec 4 victimes cachées. Au tick 11, le robot 1 est
-  scripté pour tomber en panne juste après avoir réclamé une victime, afin
-  de montrer que les deux autres robots reprennent la mission sans
-  intervention extérieure.
+![demo](output/sar_swarm_demo.gif)
 
-## Lancer la démo
+## What it demonstrates
+
+Three ground robots start from opposite corners of a 15×15 grid map
+hiding 4 victims. Each robot runs its own behavior tree and knows only
+its own position, what its sensors currently detect, and what its radio
+has received — no robot ever sees the whole board. At tick 11, robot 1
+is scripted to fail right after claiming a victim. The other two robots
+notice the claim has gone stale and pick up the mission with no outside
+intervention, which is the whole point of the demo: coordination that
+*emerges* from local rules, not from a scheduler.
+
+## How it's structured
+
+- **`bt/core.py`** — a small hand-rolled behavior tree engine (`Sequence`,
+  `Selector`, `Condition`, `Action`), modeled on the taxonomy used by
+  BehaviorTree.CPP / Nav2 (`nav2_behavior_tree`). Each robot owns and
+  ticks its own tree once per timestep.
+- **`swarm/world.py`** — a 2D grid with obstacles and BFS pathfinding,
+  standing in for Nav2's global planner + local controller (give a path
+  to a goal, advance one cell).
+- **`swarm/comms.py`** — a simulated radio bus: broadcast with limited
+  range and one tick of latency. It never makes decisions — it only
+  propagates messages.
+- **`swarm/robot.py`** — a robot is a behavior tree plus purely local
+  state (position, what it has seen, what it has heard). Coordination
+  emerges from two rules: "claim what you can see that isn't already
+  actively claimed" and "a claim with no update for 15 ticks is
+  considered stale" — a simplified, fault-tolerant contract-net protocol.
+- **`sim.py`** — the scenario described above, wiring the three robots,
+  the world, and the radio bus together and rendering the run.
+
+## Running it
 
 ```bash
 python3 sim.py
 ```
 
-Sortie : log texte des décisions (qui réclame quoi, qui secourt qui, la
-panne scriptée) + `output/sar_swarm_demo.gif` (animation matplotlib).
+This prints a text log of the robots' decisions (who claims what, who
+rescues whom, the scripted failure) and writes an animation to
+`output/sar_swarm_demo.gif`.
 
-## Pourquoi c'est décentralisé
+## Why it's decentralized
 
-Aucun processus n'a de vue globale des réclamations ni n'arbitre les
-conflits. Chaque robot ne connaît que : sa position, ce que ses "capteurs"
-détectent dans son `sensor_range`, et ce que la radio lui a livré. Retirer
-un robot de la liste dans `sim.py` ne casse rien chez les deux autres — la
-panne scriptée du robot 1 le démontre directement dans le scénario.
+No process holds a global view of claims or arbitrates conflicts. Each
+robot only knows its own position, what its `sensor_range` detects, and
+what the radio has delivered to it. Removing a robot from the list in
+`sim.py` doesn't break the other two — the scripted failure of robot 1
+demonstrates exactly that within the scenario itself.
 
-## Vers une vraie stack Nav2 multi-robot
+## Toward a real multi-robot Nav2 stack
 
-Ce prototype simplifie deux choses pour rester lisible :
+This prototype simplifies two things to stay readable:
 
-1. **Navigation** : BFS sur grille connue remplace ici Nav2
-   (`bt_navigator` + `planner_server` + `controller_server`). Sur une vraie
-   stack, chaque robot aurait son propre namespace ROS2
-   (`/robot_0/...`, `/robot_1/...`) avec sa propre instance Nav2, et les
-   nœuds `Explore`/`ClaimAndBroadcast`/`NavigateToClaim` de ce prototype
-   deviendraient des `BT.CPP` nodes appelant l'action `NavigateToPose` de
-   Nav2 au lieu de déplacer un point sur une grille.
-2. **Radio** : `radio_range` est ici volontairement large (quasi tout la
-   carte) pour rester simple. Sur ROS2, le bus serait un topic DDS
-   (`/swarm/claims`) avec QoS *best-effort* — DDS gère nativement la
-   découverte pair-à-pair sans master central, ce qui correspond
-   exactement à l'hypothèse "pas d'arbitre" de ce prototype.
+1. **Navigation** — BFS on a known grid stands in for Nav2
+   (`bt_navigator` + `planner_server` + `controller_server`). On a real
+   stack, each robot would run its own Nav2 instance in its own ROS2
+   namespace (`/robot_0/...`, `/robot_1/...`), and the
+   `Explore` / `ClaimAndBroadcast` / `NavigateToClaim` nodes here would
+   become BT.CPP nodes calling Nav2's `NavigateToPose` action instead of
+   moving a point on a grid.
+2. **Radio** — `radio_range` is deliberately generous (close to the
+   whole map) to keep things simple. On ROS2 this would be a DDS topic
+   (`/swarm/claims`) with best-effort QoS — DDS natively handles
+   peer-to-peer discovery with no central master, which matches this
+   prototype's "no arbiter" assumption exactly.
 
-La logique de réclamation/timeout/reprise sur panne, elle, se porte telle
-quelle : c'est la partie qui valide réellement le fonctionnement
-décentralisé, indépendamment de la stack de navigation utilisée en dessous.
+The claim / timeout / recovery logic itself carries over unchanged — it's
+the part that actually validates decentralized coordination, independent
+of whatever navigation stack sits underneath.
+
+---
+
+*[Version française](README.fr.md)*
