@@ -6,17 +6,24 @@ actual Nav2 package — BehaviorTree.CPP v3 plugin nodes loaded the way
 dialect that reuses Nav2's **shipped** `NavigateToPose` BT node, and a
 launch file that reuses `nav2_bringup`'s own multi-robot bringup.
 
-**Build status**: compiled with `colcon build` inside a container built
-`FROM ghcr.io/ros-navigation/navigation2:humble` (the official Nav2 CI
-image) plus the real `navigation2` source (`humble` branch, cloned fresh —
-the image's own bundled copy turned out to be package.xml stubs with no
-source). `nav2_behavior_tree` and the rest of `navigation2` built clean
-against this package's code, confirming the API assumptions below were
-correct. `swarm_sar_bt` itself needed one real fix: `project(swarm_sar_bt
-CXX)` in `CMakeLists.txt` has to be `project(swarm_sar_bt C CXX)`, because
-`rosidl_generate_interfaces` also emits C targets that a C++-only project
-can't link. Not yet run against Gazebo/live robots — see `../../Dockerfile` (i.e.
-`ros2_ws/Dockerfile`) for exactly how this was built and validated.
+**Build status**: `colcon build` succeeds, verified end to end. Built
+inside a container `FROM ghcr.io/ros-navigation/navigation2:humble` (the
+official Nav2 CI image) plus the real `navigation2` source (`humble`
+branch, cloned fresh from GitHub — the image's own bundled copy turned out
+to be package.xml stubs with no source). `nav2_behavior_tree` and the rest
+of `navigation2` (38 packages) built clean first, confirming the API
+assumptions below were correct; `swarm_sar_bt` itself needed one real fix
+(now applied): `project(swarm_sar_bt CXX)` in `CMakeLists.txt` had to
+become `project(swarm_sar_bt C CXX)`, because `rosidl_generate_interfaces`
+also emits C targets that a C++-only project can't link. After that fix,
+`colcon build --packages-select swarm_sar_bt` finishes clean and installs
+both executables (`mission_bt_node`, `victim_ground_truth_node`), all four
+custom interfaces, `libswarm_sar_bt_nodes.so`, and `sar_mission_tree.xml`
+— confirmed with `ros2 pkg executables` / `ros2 interface list` inside the
+built image. See `../../Dockerfile` (i.e. `ros2_ws/Dockerfile`) for
+exactly how. **Not yet run** against Gazebo/live robots — building is
+necessary but not sufficient; the runtime behavior (BT ticking, topic
+coordination, Nav2 bringup ordering) is still unverified.
 
 ## Target
 
