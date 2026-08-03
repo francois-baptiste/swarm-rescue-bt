@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>swarm_sar_bt</name>
+  <version>0.1.0</version>
+  <description>
+    Decentralized search-and-rescue mission layer for a ground robot swarm,
+    built on top of Nav2's own behavior tree stack (BehaviorTree.CPP v3 /
+    nav2_behavior_tree). Each robot runs its own mission BT that reuses
+    Nav2's shipped NavigateToPose BT node to drive that robot's own Nav2
+    instance, and coordinates with the rest of the swarm purely through
+    ROS2 topics - no central arbiter node exists anywhere in this package.
+  </description>
+  <maintainer email="francois.pierre.eugene.baptiste@gmail.com">Francois Baptiste</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <build_depend>rclcpp</build_depend>
+  <build_depend>rclcpp_action</build_depend>
+  <build_depend>behaviortree_cpp_v3</build_depend>
+  <build_depend>nav2_msgs</build_depend>
+  <build_depend>nav2_behavior_tree</build_depend>
+  <build_depend>nav2_common</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>builtin_interfaces</build_depend>
+  <build_depend>tf2</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
+
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>rclcpp_action</exec_depend>
+  <exec_depend>behaviortree_cpp_v3</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav2_behavior_tree</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>tf2</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

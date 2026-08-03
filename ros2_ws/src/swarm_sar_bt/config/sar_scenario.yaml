@@ -1,0 +1,10 @@
+# Ground-truth victim positions for victim_ground_truth_node. Coordinates
+# are in the "map" frame and should sit on free space in whatever map/world
+# is loaded (see launch/swarm_sar_bringup.launch.py's `world` and `map`
+# launch arguments).
+/**:
+  ros__parameters:
+    victim_ids: [0, 1, 2, 3]
+    victim_x: [6.0, -6.0, 5.0, -5.0]
+    victim_y: [6.0, 6.0, -5.0, -5.0]
+    publish_rate_hz: 2.0

@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!--
+  Decentralized search-and-rescue mission tree, one instance ticked per
+  robot by mission_bt_node. Same BT.CPP v3 XML dialect nav2_bt_navigator
+  itself uses (see navigate_to_pose_w_replanning_and_recovery.xml).
+
+  <NavigateToPose goal="{goal}"/> is Nav2's own shipped BT node
+  (nav2_navigate_to_pose_action_bt_node) - it is an action CLIENT to this
+  robot's own bt_navigator, i.e. this tree drives the real Nav2 stack
+  running in this robot's namespace. Everything else (Detect/Claim/Rescue/
+  Explore) is this package's own plugin_lib swarm_sar_bt_nodes.
+
+  No branch here ever consults another robot directly: DetectVictim and
+  the claim/rescue actions only ever read/write through SwarmKnowledge,
+  which is fed exclusively by the /swarm/claims and /swarm/rescues topics -
+  there is nothing in this tree, or anywhere else in this package, that
+  plays the role of a fleet manager.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Fallback name="MissionRoot">
+
+      <Sequence name="RescueIfArrived">
+        <HasClaim/>
+        <IsAtVictim tolerance="0.5"/>
+        <RescueVictim/>
+      </Sequence>
+
+      <Sequence name="PursueClaim">
+        <HasClaim/>
+        <NavigateToPose goal="{goal}"/>
+      </Sequence>
+
+      <Sequence name="DetectAndClaim">
+        <DetectVictim sensor_range="3.0" claim_timeout="15.0"
+                      seen_victim_id="{seen_victim_id}" seen_victim_pose="{seen_victim_pose}"/>
+        <ClaimVictim seen_victim_id="{seen_victim_id}" seen_victim_pose="{seen_victim_pose}"/>
+      </Sequence>
+
+      <Sequence name="Explore">
+        <PickExploreGoal radius="8.0"/>
+        <NavigateToPose goal="{goal}"/>
+      </Sequence>
+
+    </Fallback>
+  </BehaviorTree>
+</root>

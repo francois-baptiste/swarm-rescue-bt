@@ -1,0 +1,17 @@
+# Shared mission_bt_node params for every robot in the swarm. Rewritten per
+# namespace by the launch file the same way nav2_bringup rewrites
+# nav2_multirobot_params_all.yaml for each robot's own Nav2 stack.
+# `robot_id` is the one thing that must differ per robot; it is injected as
+# an inline parameter override in launch/swarm_sar_bringup.launch.py rather
+# than living here.
+/**:
+  ros__parameters:
+    global_frame: "map"
+    robot_base_frame: "base_link"
+    bt_xml_filename: "sar_mission_tree.xml"   # resolved to a full path by the launch file
+    bt_loop_duration_ms: 200
+    server_timeout_ms: 20000
+    wait_for_service_timeout_ms: 10000
+    plugin_lib_names:
+      - swarm_sar_bt_nodes
+      - nav2_navigate_to_pose_action_bt_node
