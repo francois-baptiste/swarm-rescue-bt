@@ -24,6 +24,12 @@ est que l'allocation est simple et globalement optimale tant que le
 Coordinator est vivant, au prix d'un point unique de défaillance pour
 toute l'allocation de tâches de l'essaim.
 
+Le dict `SCENARIOS` de `sim.py` contient plusieurs autres cartes/ratios
+robots-victimes/pannes (voir [Scénarios](#scénarios) plus bas) - chacun a
+un jumeau paramétriquement identique sur les branches décentralisées,
+pour pouvoir comparer directement quelle architecture convient le mieux
+plutôt que d'en discuter dans l'abstrait.
+
 ## Comment c'est structuré
 
 - **`swarm/coordinator.py`** — le Coordinator : un registre faisant
@@ -69,6 +75,37 @@ Play/Pause pour naviguer à la main (les deux nécessitent un affichage) :
 python3 sim.py --live
 python3 sim.py --slider
 ```
+
+## Scénarios
+
+`python3 sim.py --scenario NOM` lance l'un des scénarios suivants au lieu
+du scénario par défaut (un nom invalide liste les noms valides dans le
+message d'erreur) :
+
+| nom | ce qui change | ce que ça teste |
+| --- | --- | --- |
+| `default` | 3 robots, 4 victimes, 15×15, une panne scriptée | la démo de base ci-dessus |
+| `many_victims` | mêmes robots/carte, 9 victimes | tenue de l'appariement glouton quand les victimes sont plus nombreuses que les robots |
+| `robot_heavy` | 6 robots, 2 victimes | sur-provisionnement / comportement des robots inactifs |
+| `large_map` | carte 25×25, 5 robots, 7 victimes, une panne | passage à l'échelle sur une carte et un essaim plus grands |
+| `double_failure` | les robots 1 et 0 tombent tous deux en panne (ticks 11 et 30) | résilience quand l'essaim perd la majorité de sa capacité et que le Coordinator doit réassigner deux fois |
+| `short_sensors` | `sensor_range` environ divisé par deux (1.2) | l'importance de la portée de perception quand le Coordinator ne peut assigner que ce qui a été signalé |
+
+`python3 sim.py --compare` lance tous les scénarios sans rendu (pas de
+GIF/fenêtre) et affiche un tableau du nombre de ticks jusqu'à
+complétion — c'est aussi le test de bout en bout du projet : un scénario
+qui plante ou ne termine jamais (DNF) avant son `max_ticks` est un vrai
+bug. Les paramètres de chaque scénario sont identiques à son jumeau sur
+les branches décentralisées, donc la sortie de `--compare` des deux
+branches est faite pour être lue côte à côte, pas seulement au sein d'une
+branche. Sur les scénarios testés jusqu'ici, l'allocation centralisée
+termine nettement plus vite quand l'essaim est en bonne santé
+(`default` : 87 ticks ici contre 139 en décentralisé) car l'appariement
+glouton du Coordinator est globalement optimal plutôt que
+premier-détecté-premier-réclamé, mais perd vite cet avantage sous
+`double_failure` (172 ticks ici contre 144 en décentralisé), car perdre
+deux robots sur trois laisse l'avantage d'allocation du Coordinator avec
+un seul robot pour l'exécuter.
 
 ## Pourquoi c'est centralisé
 

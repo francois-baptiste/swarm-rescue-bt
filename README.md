@@ -24,6 +24,12 @@ demo is that allocation is simple and globally optimal as long as the
 Coordinator is alive, at the cost of it being a single point of failure
 for the whole swarm's task allocation.
 
+`sim.py`'s `SCENARIOS` dict has several more maps/robot-victim
+ratios/failure patterns (see [Scenarios](#scenarios) below) - each one has
+a parameter-identical twin on the decentralized branches, so the same
+scenario can be run on both to see which architecture actually suits it
+better, rather than reasoning about it in the abstract.
+
 ## How it's structured
 
 - **`swarm/coordinator.py`** — the Coordinator: an authoritative registry
@@ -67,6 +73,35 @@ display):
 python3 sim.py --live
 python3 sim.py --slider
 ```
+
+## Scenarios
+
+`python3 sim.py --scenario NAME` runs any of the following instead of the
+default (`--scenario` accepts an invalid name too, and lists the valid
+ones in its error message):
+
+| name | what it changes | what it tests |
+| --- | --- | --- |
+| `default` | 3 robots, 4 victims, 15×15, one scripted failure | the baseline demo above |
+| `many_victims` | same robots/map, 9 victims | how the greedy matcher holds up when victims outnumber robots |
+| `robot_heavy` | 6 robots, 2 victims | over-provisioning / idle-robot behavior |
+| `large_map` | 25×25 map, 5 robots, 7 victims, one failure | scaling to a bigger map and swarm |
+| `double_failure` | robots 1 and 0 both fail (ticks 11 and 30) | resilience when the swarm loses most of its capacity and the Coordinator has to reassign twice |
+| `short_sensors` | `sensor_range` roughly halved (1.2) | how much perception range matters when the Coordinator can only assign what's been reported |
+
+`python3 sim.py --compare` runs every scenario headlessly (no GIF/window)
+and prints a ticks-to-complete table - this is also the project's
+end-to-end test: a scenario that raises or never finishes (DNF) inside its
+`max_ticks` is a real bug. Every scenario's parameters are identical to
+its decentralized-branch twin, so `--compare`'s output from both branches
+is meant to be read side by side, not just within one branch. On the
+scenarios tried so far, centralized allocation finishes noticeably faster
+when the swarm is healthy (`default`: 87 ticks here vs. 139 decentralized)
+because the Coordinator's greedy matcher is globally optimal instead of
+first-detected-first-claimed, but loses that edge fast under
+`double_failure` (172 ticks here vs. 144 decentralized) since losing two
+of three robots leaves the Coordinator's allocation advantage with only
+one robot left to execute on.
 
 ## Why it's centralized
 
