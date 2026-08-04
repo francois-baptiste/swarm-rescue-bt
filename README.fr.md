@@ -50,9 +50,10 @@ Ce prototype simplifie deux choses pour rester lisible :
    (`bt_navigator` + `planner_server` + `controller_server`). Sur une vraie
    stack, chaque robot aurait son propre namespace ROS2
    (`/robot_0/...`, `/robot_1/...`) avec sa propre instance Nav2, et les
-   nœuds `Explore`/`ClaimAndBroadcast`/`NavigateToClaim` de ce prototype
+   nœuds `PickExploreGoal`/`ClaimVictim`/`NavigateToPose` de ce prototype
    deviendraient des `BT.CPP` nodes appelant l'action `NavigateToPose` de
-   Nav2 au lieu de déplacer un point sur une grille.
+   Nav2 au lieu de déplacer un point sur une grille — voir la branche
+   `nav2-port`, qui fait exactement cela avec les mêmes noms de nœuds BT.
 2. **Radio** : `radio_range` est ici volontairement large (quasi tout la
    carte) pour rester simple. Sur ROS2, le bus serait un topic DDS
    (`/swarm/claims`) avec QoS *best-effort* — DDS gère nativement la

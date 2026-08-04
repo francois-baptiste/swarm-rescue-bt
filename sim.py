@@ -78,16 +78,16 @@ def print_log(bus, world):
     print("=== Event log (decentralized: each line is one robot's own local decision) ===")
     for t, sender, msg in bus.event_log:
         if msg["type"] == "claim":
-            print(f"t={t:3d}  robot {sender} broadcasts: claiming victim {msg['victim']}")
+            print(f"t={t:3d}  robot {sender} broadcasts: claiming victim {msg['victim_id']}")
         elif msg["type"] == "rescued":
-            print(f"t={t:3d}  robot {sender} broadcasts: victim {msg['victim']} rescued")
+            print(f"t={t:3d}  robot {sender} broadcasts: victim {msg['victim_id']} rescued")
         elif msg["type"] == "robot_failure":
             print(f"t={t:3d}  robot {sender} FAILS (scripted) - stops moving and broadcasting")
     print()
     print("=== Summary ===")
     for vid, v in world.victims.items():
         status = f"rescued by robot {v['rescued_by']}" if v["rescued"] else "NOT rescued"
-        print(f"victim {vid} @ {v['pos']}: {status}")
+        print(f"victim {vid} @ {v['pose']}: {status}")
 
 
 def render(world, frames, gif_path):
@@ -101,7 +101,7 @@ def render(world, frames, gif_path):
         f = frames[i]
 
         for vid, v in f["victims"].items():
-            x, y = v["pos"]
+            x, y = v["pose"]
             if v["rescued"]:
                 ax.plot(x, y, marker="D", color="limegreen", markersize=10,
                         markeredgecolor="black", zorder=3)

@@ -18,7 +18,7 @@ class World:
         self.height = height
         self.grid = [[FREE] * width for _ in range(height)]
         self._build_walls()
-        self.victims = {}  # vid -> {"pos": (x, y), "rescued": bool, "rescued_by": int|None}
+        self.victims = {}  # vid -> {"pose": (x, y), "rescued": bool, "rescued_by": int|None}
 
     def _build_walls(self):
         # Hand-placed maze: a vertical wall with a gap, a horizontal wall with
@@ -33,7 +33,7 @@ class World:
 
     def add_victim(self, vid, pos):
         assert self.is_free(*pos), f"victim {vid} placed on a wall/out of bounds: {pos}"
-        self.victims[vid] = {"pos": pos, "rescued": False, "rescued_by": None}
+        self.victims[vid] = {"pose": pos, "rescued": False, "rescued_by": None}
 
     def neighbors(self, pos):
         x, y = pos

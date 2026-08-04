@@ -64,9 +64,10 @@ This prototype simplifies two things to stay readable:
    (`bt_navigator` + `planner_server` + `controller_server`). On a real
    stack, each robot would run its own Nav2 instance in its own ROS2
    namespace (`/robot_0/...`, `/robot_1/...`), and the
-   `Explore` / `ClaimAndBroadcast` / `NavigateToClaim` nodes here would
+   `PickExploreGoal` / `ClaimVictim` / `NavigateToPose` nodes here would
    become BT.CPP nodes calling Nav2's `NavigateToPose` action instead of
-   moving a point on a grid.
+   moving a point on a grid — see the `nav2-port` branch, which does
+   exactly this with the same BT leaf names.
 2. **Radio** — `radio_range` is deliberately generous (close to the
    whole map) to keep things simple. On ROS2 this would be a DDS topic
    (`/swarm/claims`) with best-effort QoS — DDS natively handles
