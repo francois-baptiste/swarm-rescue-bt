@@ -53,15 +53,15 @@ set(dependencies
 # plugin_lib_names entries (BT::SharedLibrary, not ROS pluginlib XML).
 # ---------------------------------------------------------------------------
 add_library(swarm_sar_bt_nodes SHARED
-  plugins/has_claim_condition.cpp
-  plugins/is_at_victim_condition.cpp
-  plugins/detect_victim_condition.cpp
-  plugins/claim_victim_action.cpp
-  plugins/pick_explore_goal_action.cpp
-  plugins/rescue_victim_action.cpp
+  plugins/register_nodes.cpp
 )
 ament_target_dependencies(swarm_sar_bt_nodes ${dependencies})
 target_link_libraries(swarm_sar_bt_nodes "${cpp_typesupport_target}")
+# Without this, BT_REGISTER_NODES() expands to a `static` (non-exported)
+# function instead of an extern "C" default-visibility one, so the plugin
+# loader's dlsym("BT_RegisterNodesFromPlugin") silently finds nothing -
+# see behaviortree_cpp_v3/bt_factory.h.
+target_compile_definitions(swarm_sar_bt_nodes PRIVATE BT_PLUGIN_EXPORT)
 
 # ---------------------------------------------------------------------------
 # mission_bt_node: one instance runs per robot namespace. Loads

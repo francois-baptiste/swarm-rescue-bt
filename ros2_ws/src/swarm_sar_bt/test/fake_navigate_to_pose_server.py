@@ -16,7 +16,7 @@ NavigateToPose action-client wiring for real, just not real navigation.
 import math
 
 import rclpy
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -46,6 +46,7 @@ class FakeNavigateToPoseServer(Node):
         self.create_timer(0.1, self.publish_tf, callback_group=cb_group)
         self._server = ActionServer(
             self, NavigateToPose, 'navigate_to_pose', self.execute_callback,
+            cancel_callback=lambda _: CancelResponse.ACCEPT,
             callback_group=cb_group)
 
         self.get_logger().info(
@@ -70,6 +71,10 @@ class FakeNavigateToPoseServer(Node):
         step = self.speed / rate_hz
         rate = self.create_rate(rate_hz)
         while rclpy.ok():
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                self.get_logger().info(f'navigate_to_pose cancelled at ({self.x:.2f}, {self.y:.2f})')
+                return NavigateToPose.Result()
             dx, dy = goal_x - self.x, goal_y - self.y
             dist = math.hypot(dx, dy)
             if dist < 0.15:

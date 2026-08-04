@@ -29,9 +29,11 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
 
-  auto node = std::make_shared<rclcpp::Node>(
-    "mission_bt_node",
-    rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
+  // NodeOptions().automatically_declare_parameters_from_overrides(true) is
+  // deliberately NOT used here: it auto-declares any parameter passed via
+  // `-p key:=value`, which then collides with the explicit declare_parameter
+  // calls below (rclcpp::exceptions::ParameterAlreadyDeclaredException).
+  auto node = std::make_shared<rclcpp::Node>("mission_bt_node");
 
   const int robot_id = node->declare_parameter("robot_id", 0);
   const std::string global_frame =
@@ -92,11 +94,19 @@ int main(int argc, char ** argv)
     node->get_logger(), "mission_bt_node robot_id=%d ticking '%s' at %d ms",
     robot_id, bt_xml_filename.c_str(), bt_loop_duration_ms);
 
-  engine.run(
-    &tree,
-    [&executor]() {executor.spin_some();},
-    []() {return !rclcpp::ok();},
-    std::chrono::milliseconds(bt_loop_duration_ms));
+  // Deliberately not nav2_behavior_tree::BehaviorTreeEngine::run(): its
+  // while(result == RUNNING) loop is correct for a one-shot action tree
+  // like bt_navigator's own navigate_to_pose (go there once, report done),
+  // but this mission tree is a persistent decision loop - a SUCCESS (e.g.
+  // one completed Explore leg, or one rescue) means "carry on", not "stop".
+  // Root is a ReactiveFallback, so every tick already re-evaluates the
+  // whole tree from scratch regardless of the previous tick's result.
+  rclcpp::WallRate rate{std::chrono::milliseconds(bt_loop_duration_ms)};
+  while (rclcpp::ok()) {
+    tree.tickRoot();
+    executor.spin_some();
+    rate.sleep();
+  }
 
   rclcpp::shutdown();
   return 0;

@@ -15,7 +15,7 @@
 #     "source /opt/overlay_ws/install/setup.bash && bash /opt/overlay_ws/src/swarm_sar_bt/test/run_runtime_smoke_test.sh"
 set -uo pipefail
 
-RUN_SECONDS=${RUN_SECONDS:-45}
+RUN_SECONDS=${RUN_SECONDS:-60}
 FAIL_ROBOT_AT=${FAIL_ROBOT_AT:-15}   # seconds; kill robot1's stub nav server to test reclaim
 LOG_DIR=$(mktemp -d)
 echo "Logs: $LOG_DIR"
@@ -55,11 +55,16 @@ start_robot() {
 }
 
 echo "--- starting victim_ground_truth_node ---"
+# Victim 4 sits at (2,1), inside robot0's sensor_range (3.0m) of its (0,0)
+# start - guarantees the detect/claim/navigate/rescue pipeline gets
+# exercised within the test window without depending on PickExploreGoal's
+# random walk getting lucky. Victims 0-3 are further out, reachable only
+# through exploration (matches the Python demo's layout).
 ros2 run swarm_sar_bt victim_ground_truth_node \
   --ros-args \
-  -p "victim_ids:=[0,1,2,3]" \
-  -p "victim_x:=[6.0,-6.0,5.0,-5.0]" \
-  -p "victim_y:=[6.0,6.0,-5.0,-5.0]" \
+  -p "victim_ids:=[0,1,2,3,4]" \
+  -p "victim_x:=[6.0,-6.0,5.0,-5.0,2.0]" \
+  -p "victim_y:=[6.0,6.0,-5.0,-5.0,1.0]" \
   -p publish_rate_hz:=2.0 \
   > "$LOG_DIR/victims.log" 2>&1 &
 PIDS+=("$!")
@@ -92,6 +97,11 @@ echo "=== mission_bt_node stderr tails (errors only) ==="
 for ns in robot0 robot1 robot2; do
   echo "--- $ns ---"
   grep -iE "error|fatal|exception" "$LOG_DIR/${ns}_mission.log" || echo "(none)"
+done
+echo "=== nav server activity (proves the BT is actually ticking/navigating) ==="
+for ns in robot0 robot1 robot2; do
+  echo "--- $ns ---"
+  grep -iE "navigate_to_pose|up at" "$LOG_DIR/${ns}_navserver.log" || echo "(no navigate_to_pose goals seen)"
 done
 echo
 echo "Full logs kept in $LOG_DIR (this shell only - copy out before the container exits if you need them)"

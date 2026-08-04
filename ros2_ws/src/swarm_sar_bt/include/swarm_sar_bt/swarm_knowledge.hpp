@@ -13,6 +13,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -106,6 +107,21 @@ public:
 
     std::lock_guard<std::mutex> lock(mutex_);
     known_claims_.erase(victim_id);
+    rescued_victim_ids_.insert(victim_id);
+  }
+
+  // True as soon as ANY /swarm/rescues message for this victim has been
+  // seen (including this robot's own, recorded immediately in
+  // publishRescue - not just once it round-trips through the subscription).
+  // /victims_ground_truth's own "rescued" flag is only republished on
+  // victim_ground_truth_node's timer (e.g. every 500ms at 2Hz), which is
+  // slow enough that relying on it alone let a robot re-detect and
+  // re-rescue a victim within that window - this is the fast path that
+  // closes that race.
+  bool isKnownRescued(int victim_id) const
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return rescued_victim_ids_.count(victim_id) > 0;
   }
 
 private:
@@ -129,6 +145,7 @@ private:
   {
     std::lock_guard<std::mutex> lock(mutex_);
     known_claims_.erase(msg->victim_id);
+    rescued_victim_ids_.insert(msg->victim_id);
   }
 
   void onVictims(swarm_sar_bt::msg::VictimArray::ConstSharedPtr msg)
@@ -146,6 +163,7 @@ private:
 
   mutable std::mutex mutex_;
   std::unordered_map<int, KnownClaim> known_claims_;
+  std::unordered_set<int> rescued_victim_ids_;
   std::vector<swarm_sar_bt::msg::Victim> victims_;
 };
 

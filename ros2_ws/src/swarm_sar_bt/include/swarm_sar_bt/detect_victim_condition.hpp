@@ -59,7 +59,7 @@ public:
     std::optional<swarm_sar_bt::msg::Victim> best;
     double best_dist = 0.0;
     for (const auto & victim : knowledge_->latestVictims()) {
-      if (victim.rescued) {
+      if (victim.rescued || knowledge_->isKnownRescued(victim.id)) {
         continue;
       }
       const double d = distance2D(robot_pose->pose.position, victim.pose);

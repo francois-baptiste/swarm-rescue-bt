@@ -15,10 +15,21 @@
   which is fed exclusively by the /swarm/claims and /swarm/rescues topics -
   there is nothing in this tree, or anywhere else in this package, that
   plays the role of a fleet manager.
+
+  Root is ReactiveFallback, not plain Fallback: BT.CPP v3's plain Fallback
+  resumes ticking at whichever child last returned RUNNING, so once a
+  robot commits to Explore it would never re-check RescueIfArrived /
+  PursueClaim / DetectAndClaim again until that explore leg finished -
+  a robot could walk right past a victim it could have claimed. Nav2's
+  own recovery tree uses ReactiveFallback for exactly this reason (see
+  navigate_to_pose_w_replanning_and_recovery.xml's RecoveryFallback):
+  it re-evaluates every child from the top on every tick, so a higher-
+  priority branch can preempt a RUNNING lower-priority one (NavigateToPose
+  gets properly halt()-ed/cancelled when preempted, not just abandoned).
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <Fallback name="MissionRoot">
+    <ReactiveFallback name="MissionRoot">
 
       <Sequence name="RescueIfArrived">
         <HasClaim/>
@@ -42,6 +53,6 @@
         <NavigateToPose goal="{goal}"/>
       </Sequence>
 
-    </Fallback>
+    </ReactiveFallback>
   </BehaviorTree>
 </root>
