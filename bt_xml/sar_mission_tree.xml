@@ -2,16 +2,17 @@
 <!--
   Groot2-viewable rendering of the tree built in swarm/robot.py's
   Robot._build_tree(). This XML isn't executed by the Python simulation
-  (bt/core.py is a small standalone engine, not BehaviorTree.CPP) - it
-  exists purely so the same mission tree can be opened and inspected
-  visually in Groot2, using the exact node names and ports harmonized
-  with the nav2-port branch's own ros2_ws/src/swarm_sar_bt/bt_xml/
-  sar_mission_tree.xml (which IS a real, executable BT.CPP tree).
+  (swarm/robot.py builds a real py_trees.composites tree, but py_trees has
+  no BT.CPP-XML import/export of its own) - it exists purely so the same
+  mission tree can be opened and inspected visually in Groot2, using the
+  exact node names and ports harmonized with the nav2-port branch's own
+  ros2_ws/src/swarm_sar_bt/bt_xml/sar_mission_tree.xml (which IS a real,
+  executable BT.CPP tree).
 
-  Root is ReactiveFallback because swarm/robot.py re-evaluates the whole
-  tree from the top on every simulation tick (there is no persisted
-  per-node RUNNING state), which is the same reactive semantics nav2-port
-  uses ReactiveFallback for.
+  Root is ReactiveFallback because swarm/robot.py's py_trees Selector uses
+  memory=False: it re-evaluates every child from the top on every
+  simulation tick rather than resuming at the last RUNNING child, which is
+  the same reactive semantics nav2-port uses ReactiveFallback for.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">

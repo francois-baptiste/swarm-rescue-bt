@@ -20,10 +20,12 @@ intervention, which is the whole point of the demo: coordination that
 
 ## How it's structured
 
-- **`bt/core.py`** — a small hand-rolled behavior tree engine (`Sequence`,
-  `Selector`, `Condition`, `Action`), modeled on the taxonomy used by
-  BehaviorTree.CPP / Nav2 (`nav2_behavior_tree`). Each robot owns and
-  ticks its own tree once per timestep.
+- **`swarm/robot.py`**'s leaf classes and `Robot._build_tree()` — the tree is
+  built with [py_trees](https://py-trees.readthedocs.io/) (`Selector`,
+  `Sequence`, one `py_trees.behaviour.Behaviour` subclass per leaf), using
+  the same node names as the taxonomy BehaviorTree.CPP / Nav2 uses
+  (`nav2_behavior_tree`). Each robot owns and ticks its own tree once per
+  timestep.
 - **`swarm/world.py`** — a 2D grid with obstacles and BFS pathfinding,
   standing in for Nav2's global planner + local controller (give a path
   to a goal, advance one cell).
@@ -41,6 +43,7 @@ intervention, which is the whole point of the demo: coordination that
 ## Running it
 
 ```bash
+pip install -r requirements.txt
 python3 sim.py
 ```
 

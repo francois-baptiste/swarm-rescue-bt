@@ -3,10 +3,12 @@
 Démo autonome en Python pur (pas de ROS2/Nav2/Gazebo requis) pour valider un
 principe d'architecture avant de l'implémenter sur une vraie stack robotique :
 
-- **`bt/core.py`** — moteur de behavior tree fait maison (Sequence, Selector,
-  Condition, Action), calqué sur la taxonomie de BehaviorTree.CPP / Nav2
-  (`nav2_behavior_tree`). Chaque robot exécute son propre arbre, tické une
-  fois par pas de temps.
+- **`swarm/robot.py`** (classes de feuilles + `Robot._build_tree()`) —
+  l'arbre est construit avec [py_trees](https://py-trees.readthedocs.io/)
+  (`Selector`, `Sequence`, une sous-classe `py_trees.behaviour.Behaviour`
+  par feuille), avec les mêmes noms de nœuds que la taxonomie de
+  BehaviorTree.CPP / Nav2 (`nav2_behavior_tree`). Chaque robot exécute son
+  propre arbre, tické une fois par pas de temps.
 - **`swarm/world.py`** — grille 2D avec obstacles + BFS, qui joue le rôle du
   planificateur global + contrôleur local de Nav2 (donner un chemin vers un
   objectif, avancer d'une cellule).
@@ -28,6 +30,7 @@ principe d'architecture avant de l'implémenter sur une vraie stack robotique :
 ## Lancer la démo
 
 ```bash
+pip install -r requirements.txt
 python3 sim.py
 ```
 
