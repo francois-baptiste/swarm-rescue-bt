@@ -120,6 +120,21 @@ def reachable_cells(world, start):
     return seen
 
 
+def perimeter_cells(world):
+    """Free cells on the outer ring of the grid, in clockwise walking order
+    starting from the top-left corner - used by the patrol mission to build
+    a loop route. Border walls aren't part of any generated maze here (the
+    walls in _build_walls are all interior), so this is normally the full
+    ring, but is_free is still checked for robustness."""
+    top, bottom = 0, world.height - 1
+    left, right = 0, world.width - 1
+    cells = [(x, top) for x in range(left, right + 1)]
+    cells += [(right, y) for y in range(top + 1, bottom + 1)]
+    cells += [(x, bottom) for x in range(right - 1, left - 1, -1)]
+    cells += [(left, y) for y in range(bottom - 1, top, -1)]
+    return [c for c in cells if world.is_free(*c)]
+
+
 def bfs_nearest(world, start, targets):
     """Shortest path from start to the nearest cell in `targets` (a set)."""
     if start in targets:
