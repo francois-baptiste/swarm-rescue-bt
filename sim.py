@@ -1,11 +1,14 @@
-"""Decentralized search-and-rescue swarm demo.
+"""Centralized search-and-rescue swarm demo.
 
 3 ground robots ("drones"), each running its own behavior tree, search a grid
-for victims and rescue them. There is no central coordinator: task
-allocation emerges from robots broadcasting claims over a simulated radio and
-each robot independently applying the same rule to what it hears. A robot is
-scripted to fail mid-mission to show the swarm re-allocates its work without
-any external intervention.
+for victims and rescue them. Perception stays local (a robot only reports
+victims within its own sensor_range) but task allocation does not: every
+robot reports sightings and a heartbeat to a single swarm.coordinator.
+Coordinator, which is the only thing that ever decides who pursues which
+victim. A robot is scripted to fail mid-mission to show the Coordinator
+notices the silence and reassigns its victim - compare this to the
+decentralized branch, where the *robots* notice a stale claim; here losing
+the Coordinator itself would stop task allocation entirely.
 
 Run:  python3 sim.py           -> saves output/sar_swarm_demo.gif
 Run:  python3 sim.py --live    -> also opens an interactive matplotlib window
@@ -41,7 +44,7 @@ import numpy as np
 import py_trees
 
 from swarm.world import World
-from swarm.comms import Bus
+from swarm.coordinator import Coordinator
 from swarm.robot import Robot
 
 Status = py_trees.common.Status
@@ -54,11 +57,9 @@ STATUS_COLORS = {
 
 MAX_TICKS = 220
 FAIL_ROBOT_ID = 1
-FAIL_TICK = 11  # fails right after claiming a victim, before rescuing it -
-                # forces another robot to detect the stale claim and take over
+FAIL_TICK = 11  # fails right after being assigned a victim, before rescuing it -
+                # forces the Coordinator to notice the silence and reassign it
 SENSOR_RANGE = 2.5
-RADIO_RANGE = 30.0  # effectively whole-map mesh; decentralization is about
-                     # *who decides*, not physical radio reach - see README.
 
 
 def build_scenario():
@@ -66,15 +67,14 @@ def build_scenario():
     for vid, pos in enumerate([(12, 12), (2, 12), (10, 3), (3, 3)]):
         world.add_victim(vid, pos)
 
-    bus = Bus()
+    coordinator = Coordinator(world)
     starts = [(0, 0), (14, 0), (7, 14)]
     colors = ["#d62728", "#1f77b4", "#2ca02c"]
     robots = [
-        Robot(i, starts[i], world, bus, sensor_range=SENSOR_RANGE,
-              radio_range=RADIO_RANGE, color=colors[i])
+        Robot(i, starts[i], world, coordinator, sensor_range=SENSOR_RANGE, color=colors[i])
         for i in range(3)
     ]
-    return world, bus, robots
+    return world, coordinator, robots
 
 
 def _tree_snapshot(robot):
@@ -92,18 +92,18 @@ def _tree_snapshot(robot):
     return list(walk(robot.tree))
 
 
-def run(world, bus, robots):
+def run(world, coordinator, robots):
     """Returns per-tick snapshots for rendering, and stops early once every
     victim is rescued."""
     frames = []
     for t in range(MAX_TICKS):
         if t == FAIL_TICK:
             robots[FAIL_ROBOT_ID].failed = True
-            bus.event_log.append((t, FAIL_ROBOT_ID, {"type": "robot_failure"}))
+            coordinator.event_log.append((t, FAIL_ROBOT_ID, {"type": "robot_failure"}))
 
         for r in robots:
             r.tick(t)
-        bus.advance_tick()
+        coordinator.assign(robots, t)
 
         frames.append({
             "t": t,
@@ -119,15 +119,18 @@ def run(world, bus, robots):
     return frames
 
 
-def print_log(bus, world):
-    print("=== Event log (decentralized: each line is one robot's own local decision) ===")
-    for t, sender, msg in bus.event_log:
-        if msg["type"] == "claim":
-            print(f"t={t:3d}  robot {sender} broadcasts: claiming victim {msg['victim_id']}")
+def print_log(coordinator, world):
+    print("=== Event log (centralized: every allocation decision is the Coordinator's) ===")
+    for t, sender, msg in coordinator.event_log:
+        if msg["type"] == "assign":
+            print(f"t={t:3d}  coordinator assigns robot {msg['robot_id']} to victim {msg['victim_id']}")
+        elif msg["type"] == "reassign":
+            print(f"t={t:3d}  coordinator revokes robot {msg['robot_id']}'s assignment on victim "
+                  f"{msg['victim_id']} (robot went silent) - up for reassignment")
         elif msg["type"] == "rescued":
-            print(f"t={t:3d}  robot {sender} broadcasts: victim {msg['victim_id']} rescued")
+            print(f"t={t:3d}  robot {msg['robot_id']} reports: victim {msg['victim_id']} rescued")
         elif msg["type"] == "robot_failure":
-            print(f"t={t:3d}  robot {sender} FAILS (scripted) - stops moving and broadcasting")
+            print(f"t={t:3d}  robot {sender} FAILS (scripted) - stops moving and reporting")
     print()
     print("=== Summary ===")
     for vid, v in world.victims.items():
@@ -180,7 +183,7 @@ def render(world, robots, frames, gif_path=None, live=False, slider=False):
             ax_map.annotate(f"R{rid}: {state}", pos, textcoords="offset points",
                             xytext=(10, 8), fontsize=8, color=color, weight="bold")
 
-        ax_map.set_title(f"Decentralized SAR swarm - tick {f['t']}")
+        ax_map.set_title(f"Centralized SAR swarm - tick {f['t']}")
         ax_map.set_xlim(-0.5, world.width - 0.5)
         ax_map.set_ylim(-0.5, world.height - 0.5)
         ax_map.set_xticks([])
@@ -274,13 +277,13 @@ def _run_interactive(fig, draw, n_frames):
 
 
 if __name__ == "__main__":
-    world, bus, robots = build_scenario()
+    world, coordinator, robots = build_scenario()
 
     free = set(world.all_free_cells())
     assert all(r.pos in free for r in robots), "a robot starts on a wall"
 
-    frames = run(world, bus, robots)
-    print_log(bus, world)
+    frames = run(world, coordinator, robots)
+    print_log(coordinator, world)
     print(f"\nSimulation ran {len(frames)} ticks.")
 
     gif_path = None if SLIDER else "output/sar_swarm_demo.gif"

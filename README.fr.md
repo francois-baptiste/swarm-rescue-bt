@@ -1,31 +1,50 @@
-# Essaim décentralisé de recherche & sauvetage (démo)
+# Essaim centralisé de recherche & sauvetage (branche centralisée)
 
-Démo autonome en Python pur (pas de ROS2/Nav2/Gazebo requis) pour valider un
-principe d'architecture avant de l'implémenter sur une vraie stack robotique :
+Démo autonome en Python pur (pas de ROS2/Nav2/Gazebo requis) pour valider
+un principe d'architecture — des behavior trees pour la perception et la
+navigation locales, avec un Coordinator unique qui prend toutes les
+décisions d'allocation de tâches — avant de l'implémenter sur une vraie
+stack robotique. À comparer avec les branches `py-trees-port` / `master`,
+où le même scénario est résolu sans aucun arbitre central.
 
+![demo](output/sar_swarm_demo.gif)
+
+## Ce que ça démontre
+
+3 robots terrestres partent de coins opposés d'une carte 15×15 avec
+4 victimes cachées. Chaque robot exécute toujours son propre arbre de
+comportement et ne perçoit toujours que les victimes dans son propre
+`sensor_range` — mais au lieu de réclamer une victime détectée pour
+lui-même, il la signale (avec un heartbeat) à un unique
+`swarm.coordinator.Coordinator`, seul à décider quel robot poursuit
+quelle victime. Au tick 11, le robot 1 est scripté pour tomber en panne
+juste après s'être vu assigner une victime. Le Coordinator remarque le
+silence et réassigne la victime à un autre robot — l'idée de *cette* démo
+est que l'allocation est simple et globalement optimale tant que le
+Coordinator est vivant, au prix d'un point unique de défaillance pour
+toute l'allocation de tâches de l'essaim.
+
+## Comment c'est structuré
+
+- **`swarm/coordinator.py`** — le Coordinator : un registre faisant
+  autorité sur les victimes connues et les assignations en cours, un
+  timeout de heartbeat qui réassigne la victime d'un robot silencieux, et
+  un appariement glouton robot/victime le plus proche, exécuté une fois
+  par tick après que chaque robot a perçu et bougé.
 - **`swarm/robot.py`** (classes de feuilles + `Robot._build_tree()`) —
   l'arbre est construit avec [py_trees](https://py-trees.readthedocs.io/)
   (`Selector`, `Sequence`, une sous-classe `py_trees.behaviour.Behaviour`
-  par feuille), avec les mêmes noms de nœuds que la taxonomie de
-  BehaviorTree.CPP / Nav2 (`nav2_behavior_tree`). Chaque robot exécute son
-  propre arbre, tické une fois par pas de temps.
-- **`swarm/world.py`** — grille 2D avec obstacles + BFS, qui joue le rôle du
-  planificateur global + contrôleur local de Nav2 (donner un chemin vers un
-  objectif, avancer d'une cellule).
-- **`swarm/comms.py`** — bus radio simulé (broadcast à portée limitée, un
-  tick de latence). Aucun arbitre : ce fichier ne décide jamais rien, il
-  ne fait que propager des messages.
-- **`swarm/robot.py`** — un robot = un arbre de comportement + un état
-  purement local (position, ce qu'il a vu, ce qu'il a entendu). La
-  coordination émerge de la règle "je réclame ce que je vois et qui n'est
-  pas déjà activement réclamé" + "une réclamation sans nouvelle depuis
-  15 ticks est considérée périmée" (tolérance de panne, type contract-net
-  simplifié).
-- **`sim.py`** — scénario : 3 robots terrestres partent de coins opposés
-  d'une carte 15x15 avec 4 victimes cachées. Au tick 11, le robot 1 est
-  scripté pour tomber en panne juste après avoir réclamé une victime, afin
-  de montrer que les deux autres robots reprennent la mission sans
-  intervention extérieure.
+  par feuille). `DetectVictim`/`ReportVictim` remplacent
+  `DetectVictim`/`ClaimVictim` des branches décentralisées — un robot
+  signale ce qu'il perçoit au lieu de décider de le réclamer — et
+  `HasAssignment`/`PursueAssignment` remplacent `HasClaim`/`PursueClaim`.
+  `Explore` est inchangé : le déplacement reste une décision purement
+  locale même ici.
+- **`swarm/world.py`** — grille 2D avec obstacles + BFS, qui joue le rôle
+  du planificateur global + contrôleur local de Nav2 (donner un chemin
+  vers un objectif, avancer d'une cellule).
+- **`sim.py`** — le scénario décrit ci-dessus, qui assemble les trois
+  robots, le monde et le Coordinator, et rend le run.
 
 ## Lancer la démo
 
@@ -34,47 +53,50 @@ pip install -r requirements.txt
 python3 sim.py
 ```
 
-Sortie : log texte des décisions (qui réclame quoi, qui secourt qui, la
-panne scriptée) + `output/sar_swarm_demo.gif` (animation matplotlib). Le
-GIF est un petit tableau de bord : la carte (avec une flèche de
-déplacement par robot), la branche actuellement active de l'arbre de
-comportement de chaque robot (`R0: PursueClaim > NavigateToPose
-[RUNNING]`), et l'évolution du vecteur position (x/y) de chaque robot au
-cours du run.
+Sortie : log texte des décisions du Coordinator (qui il assigne à quoi,
+qui il réassigne et pourquoi, qui signale un secours) +
+`output/sar_swarm_demo.gif`. L'animation est un tableau de bord : la
+carte (avec une flèche de déplacement par robot) et l'arbre de
+comportement complet de chaque robot, chaque nœud coloré selon son statut
+py_trees en direct.
 
-Ajoutez `--live` pour ouvrir aussi une fenêtre matplotlib interactive au
-lieu de seulement sauvegarder le GIF (nécessite un affichage) :
+Ajoutez `--live` pour ouvrir une fenêtre matplotlib interactive qui joue
+automatiquement au lieu de seulement sauvegarder le GIF, ou `--slider`
+pour la même fenêtre en pause avec un curseur de tick et un bouton
+Play/Pause pour naviguer à la main (les deux nécessitent un affichage) :
 
 ```bash
 python3 sim.py --live
+python3 sim.py --slider
 ```
 
-## Pourquoi c'est décentralisé
+## Pourquoi c'est centralisé
 
-Aucun processus n'a de vue globale des réclamations ni n'arbitre les
-conflits. Chaque robot ne connaît que : sa position, ce que ses "capteurs"
-détectent dans son `sensor_range`, et ce que la radio lui a livré. Retirer
-un robot de la liste dans `sim.py` ne casse rien chez les deux autres — la
-panne scriptée du robot 1 le démontre directement dans le scénario.
+Le `Coordinator` de `swarm/coordinator.py` est le seul processus à avoir
+une vue globale de chaque victime connue et de chaque assignation, et le
+seul endroit qui arbitre les conflits et détecte un robot silencieux. Les
+robots ne se parlent jamais entre eux et ne décident jamais qui poursuit
+quoi — retirez le Coordinator et chaque robot continue de percevoir et
+d'explorer, mais plus rien n'est jamais assigné ni secouru. C'est
+l'inverse délibéré du "retirer n'importe quel robot ne casse rien chez
+les autres" des branches décentralisées — voir leurs README pour le
+compromis dans l'autre sens.
 
 ## Vers une vraie stack Nav2 multi-robot
 
-Ce prototype simplifie deux choses pour rester lisible :
+Ce prototype simplifie les deux mêmes choses que les branches
+décentralisées, pour la même raison (rester lisible) :
 
 1. **Navigation** : BFS sur grille connue remplace ici Nav2
-   (`bt_navigator` + `planner_server` + `controller_server`). Sur une vraie
-   stack, chaque robot aurait son propre namespace ROS2
-   (`/robot_0/...`, `/robot_1/...`) avec sa propre instance Nav2, et les
-   nœuds `PickExploreGoal`/`ClaimVictim`/`NavigateToPose` de ce prototype
-   deviendraient des `BT.CPP` nodes appelant l'action `NavigateToPose` de
-   Nav2 au lieu de déplacer un point sur une grille — voir la branche
-   `nav2-port`, qui fait exactement cela avec les mêmes noms de nœuds BT.
-2. **Radio** : `radio_range` est ici volontairement large (quasi tout la
-   carte) pour rester simple. Sur ROS2, le bus serait un topic DDS
-   (`/swarm/claims`) avec QoS *best-effort* — DDS gère nativement la
-   découverte pair-à-pair sans master central, ce qui correspond
-   exactement à l'hypothèse "pas d'arbitre" de ce prototype.
-
-La logique de réclamation/timeout/reprise sur panne, elle, se porte telle
-quelle : c'est la partie qui valide réellement le fonctionnement
-décentralisé, indépendamment de la stack de navigation utilisée en dessous.
+   (`bt_navigator` + `planner_server` + `controller_server`). Sur une
+   vraie stack, chaque robot aurait sa propre instance Nav2 dans son
+   propre namespace ROS2, et `PickExploreGoal`/`NavigateToPose` ici
+   deviendraient des nœuds BT.CPP appelant l'action `NavigateToPose` de
+   Nav2 au lieu de déplacer un point sur une grille.
+2. **Liaison montante** : le signalement/heartbeat d'un robot vers le
+   Coordinator est modélisé comme un appel de méthode instantané, sans
+   délai de propagation (contrairement au tick de latence radio des
+   branches décentralisées). Sur une vraie stack, ce serait un topic ou
+   un appel de service ROS2 vers un nœud fleet-manager, qui a lui un vrai
+   délai — le `FAILURE_TIMEOUT` du Coordinator devrait en tenir compte,
+   comme le fait `CLAIM_TIMEOUT` sur les branches décentralisées.

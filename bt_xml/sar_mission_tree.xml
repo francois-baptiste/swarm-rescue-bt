@@ -1,38 +1,43 @@
 <?xml version="1.0"?>
 <!--
   Groot2-viewable rendering of the tree built in swarm/robot.py's
-  Robot._build_tree(). This XML isn't executed by the Python simulation
-  (swarm/robot.py builds a real py_trees.composites tree, but py_trees has
-  no BT.CPP-XML import/export of its own) - it exists purely so the same
-  mission tree can be opened and inspected visually in Groot2, using the
-  exact node names and ports harmonized with the nav2-port branch's own
-  ros2_ws/src/swarm_sar_bt/bt_xml/sar_mission_tree.xml (which IS a real,
-  executable BT.CPP tree).
+  Robot._build_tree() on the centralized-swarm branch. This XML isn't
+  executed by the Python simulation (swarm/robot.py builds a real
+  py_trees.composites tree, but py_trees has no BT.CPP-XML import/export
+  of its own) - it exists purely so the same mission tree can be opened
+  and inspected visually in Groot2.
+
+  Compare this to the decentralized branches' bt_xml/sar_mission_tree.xml:
+  RescueIfArrived and Explore are unchanged, but HasClaim/PursueClaim
+  became HasAssignment/PursueAssignment, and DetectAndClaim/ClaimVictim
+  became ReportVictims/ReportVictim - a robot now reports what it senses
+  to swarm/coordinator.py's Coordinator instead of deciding to claim it
+  itself. There is no claim_timeout port anymore either: staleness is the
+  Coordinator's problem (FAILURE_TIMEOUT in swarm/coordinator.py), not
+  something each robot has to infer from radio silence.
 
   Root is ReactiveFallback because swarm/robot.py's py_trees Selector uses
   memory=False: it re-evaluates every child from the top on every
-  simulation tick rather than resuming at the last RUNNING child, which is
-  the same reactive semantics nav2-port uses ReactiveFallback for.
+  simulation tick rather than resuming at the last RUNNING child.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <ReactiveFallback name="MissionRoot">
 
       <Sequence name="RescueIfArrived">
-        <HasClaim/>
+        <HasAssignment/>
         <IsAtVictim tolerance="0.0"/>
         <RescueVictim/>
       </Sequence>
 
-      <Sequence name="PursueClaim">
-        <HasClaim/>
-        <NavigateToPose goal="{claim_pose}"/>
+      <Sequence name="PursueAssignment">
+        <HasAssignment/>
+        <NavigateToPose goal="{assigned_pose}"/>
       </Sequence>
 
-      <Sequence name="DetectAndClaim">
-        <DetectVictim sensor_range="2.5" claim_timeout="15"
-                      seen_victim_id="{seen_victim_id}"/>
-        <ClaimVictim seen_victim_id="{seen_victim_id}"/>
+      <Sequence name="ReportVictims">
+        <DetectVictim sensor_range="2.5" sensed_victim_ids="{sensed_victim_ids}"/>
+        <ReportVictim sensed_victim_ids="{sensed_victim_ids}"/>
       </Sequence>
 
       <Sequence name="Explore">
@@ -46,24 +51,24 @@
   <!-- Node models so Groot2 draws the right shape/ports for each custom
        leaf even though no C++ plugin registers them for this branch. -->
   <TreeNodesModel>
-    <Condition ID="HasClaim"/>
+    <Condition ID="HasAssignment"/>
     <Condition ID="IsAtVictim">
-      <input_port name="tolerance" default="0.0">grid cell match, unlike nav2-port's metric tolerance</input_port>
+      <input_port name="tolerance" default="0.0">grid cell match, unlike a metric tolerance</input_port>
     </Condition>
     <Action ID="RescueVictim"/>
     <Action ID="NavigateToPose">
-      <input_port name="goal">BFS-walked grid cell, unlike nav2-port's real Nav2 goal pose</input_port>
+      <input_port name="goal">BFS-walked grid cell</input_port>
     </Action>
     <Condition ID="DetectVictim">
       <input_port name="sensor_range" default="2.5"/>
-      <input_port name="claim_timeout" default="15">ticks, not seconds</input_port>
-      <output_port name="seen_victim_id"/>
+      <output_port name="sensed_victim_ids">every unrescued victim in range, not just the nearest</output_port>
     </Condition>
-    <Action ID="ClaimVictim">
-      <input_port name="seen_victim_id"/>
+    <Action ID="ReportVictim">
+      <input_port name="sensed_victim_ids"/>
+      uplinks sightings to the Coordinator; does not decide who pursues them
     </Action>
     <Action ID="PickExploreGoal">
-      nearest unvisited BFS frontier cell, unlike nav2-port's random radius sample
+      nearest unvisited BFS frontier cell
     </Action>
   </TreeNodesModel>
 </root>
