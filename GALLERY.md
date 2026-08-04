@@ -30,6 +30,17 @@ N robots split a border loop into arcs. Robot 1 fails almost immediately.
 | --- | --- |
 | ![patrol decentralized](https://raw.githubusercontent.com/francois-baptiste/swarm-rescue-bt/py-trees-port/output/sar_swarm_patrol_robot_down.gif) | ![patrol centralized](https://raw.githubusercontent.com/francois-baptiste/swarm-rescue-bt/centralized-swarm/output/sar_swarm_patrol_robot_down.gif) |
 
+## Patrol (`double_failure`)
+
+Same border-patrol setup, but now *two* of the four robots fail (ticks 3
+and 30) instead of one. Decentralized loses roughly half the loop for
+good; centralized rebalances down to the 2 survivors and **recovers full
+coverage twice over** — just slower.
+
+| Decentralized — ~half the loop unpatrolled forever | Centralized — full coverage recovers, twice |
+| --- | --- |
+| ![patrol double failure decentralized](https://raw.githubusercontent.com/francois-baptiste/swarm-rescue-bt/py-trees-port/output/sar_swarm_patrol_double_failure.gif) | ![patrol double failure centralized](https://raw.githubusercontent.com/francois-baptiste/swarm-rescue-bt/centralized-swarm/output/sar_swarm_patrol_double_failure.gif) |
+
 ## Relay (`robot_down`)
 
 N robots hold a chain of positions between a source and a sink. The
