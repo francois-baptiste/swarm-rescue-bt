@@ -1,50 +1,58 @@
 # swarm-rescue-bt
 
-A decentralized multi-robot search & rescue simulation, written in pure
-Python with **no ROS2 / Nav2 / Gazebo dependency**. It exists to validate
-a coordination architecture — behavior trees driving fully local decisions,
+Five decentralized multi-robot swarm simulations, written in pure Python
+with **no ROS2 / Nav2 / Gazebo dependency**. Each one exists to validate a
+coordination architecture — behavior trees driving fully local decisions,
 with no central arbiter — before porting it onto a real robotics stack.
 
 ![demo](output/sar_swarm_demo.gif)
 
 ## What it demonstrates
 
-The default scenario: three ground robots start from opposite corners of
-a 15×15 grid map hiding 4 victims. Each robot runs its own behavior tree
-and knows only its own position, what its sensors currently detect, and
-what its radio has received — no robot ever sees the whole board. At tick
-11, robot 1 is scripted to fail right after claiming a victim. The other
-two robots notice the claim has gone stale and pick up the mission with
-no outside intervention, which is the whole point of the demo:
-coordination that *emerges* from local rules, not from a scheduler.
+The flagship mission (`rescue`, the original demo): three ground robots
+start from opposite corners of a 15×15 grid map hiding 4 victims. Each
+robot runs its own behavior tree and knows only its own position, what
+its sensors currently detect, and what its radio has received — no robot
+ever sees the whole board. At tick 11, robot 1 is scripted to fail right
+after claiming a victim. The other two robots notice the claim has gone
+stale and pick up the mission with no outside intervention, which is the
+whole point of the demo: coordination that *emerges* from local rules,
+not from a scheduler.
 
-`sim.py`'s `SCENARIOS` dict has several more maps/robot-victim
-ratios/failure patterns (see [Scenarios](#scenarios) below) - each one has
-a parameter-identical twin on the `centralized-swarm` branch, so the same
-scenario can be run on both to see which architecture actually suits it
-better, rather than reasoning about it in the abstract.
+Four more missions (see [Missions](#missions) below) explore the same
+idea in different shapes — patrolling a shared perimeter, holding a
+communication relay chain, hunting a moving target, and a two-team
+capture-the-flag contest. Every mission has a parameter-identical twin on
+the `centralized-swarm` branch, so the same scenario can be run on both
+to see which architecture actually suits it better, rather than
+reasoning about it in the abstract.
 
 ## How it's structured
 
-- **`swarm/robot.py`**'s leaf classes and `Robot._build_tree()` — the tree is
-  built with [py_trees](https://py-trees.readthedocs.io/) (`Selector`,
-  `Sequence`, one `py_trees.behaviour.Behaviour` subclass per leaf), using
-  the same node names as the taxonomy BehaviorTree.CPP / Nav2 uses
-  (`nav2_behavior_tree`). Each robot owns and ticks its own tree once per
-  timestep.
+- **`missions/<name>.py`** — one file per mission (`rescue`, `patrol`,
+  `relay`, `wolfpack`, `capture_flag`), each defining its own robot
+  class(es), `SCENARIOS` dict, `build_scenario`/`run`/`print_log`/
+  `summarize`, and the map decorations `sim.py` needs to render it
+  (`draw_extra`/`legend_handles`). `missions/common.py` holds the handful
+  of things every mission shares (the color palette, the py_trees
+  tree-snapshot helper).
+- Every mission's tree is built with
+  [py_trees](https://py-trees.readthedocs.io/) (`Selector`, `Sequence`,
+  one `py_trees.behaviour.Behaviour` subclass per leaf), using the same
+  node-naming taxonomy BehaviorTree.CPP / Nav2 uses (`nav2_behavior_tree`)
+  - `NavigateToPose` means the same thing (BFS-walk one cell toward a
+  goal) in every mission, whatever leaf currently owns picking that goal.
 - **`swarm/world.py`** — a 2D grid with obstacles and BFS pathfinding,
   standing in for Nav2's global planner + local controller (give a path
   to a goal, advance one cell).
 - **`swarm/comms.py`** — a simulated radio bus: broadcast with limited
   range and one tick of latency. It never makes decisions — it only
-  propagates messages.
-- **`swarm/robot.py`** — a robot is a behavior tree plus purely local
-  state (position, what it has seen, what it has heard). Coordination
-  emerges from two rules: "claim what you can see that isn't already
-  actively claimed" and "a claim with no update for 15 ticks is
-  considered stale" — a simplified, fault-tolerant contract-net protocol.
-- **`sim.py`** — the scenario described above, wiring the three robots,
-  the world, and the radio bus together and rendering the run.
+  propagates messages. Used by `rescue` (claims) and `wolfpack` (prey
+  sightings); `patrol`, `relay`, and `capture_flag` need no radio at all,
+  since nothing in them is decided from what another robot says.
+- **`sim.py`** — mission-agnostic driver: CLI parsing, the shared
+  render/GIF/`--live`/`--slider`/`--compare` machinery, dispatching to
+  whichever `missions/<name>.py` module `--mission` selects.
 
 ## Running it
 
@@ -69,33 +77,97 @@ python3 sim.py --live
 python3 sim.py --slider
 ```
 
-## Scenarios
+## Missions
 
-`python3 sim.py --scenario NAME` runs any of the following instead of the
-default (`--scenario` accepts an invalid name too, and lists the valid
-ones in its error message):
+`python3 sim.py --mission NAME` picks a mission (default `rescue`);
+`--scenario NAME` then picks one of that mission's own scenarios
+(`--mission`/`--scenario` accept an invalid name too, and list the valid
+ones in their error message). `python3 sim.py --mission NAME --compare`
+runs every scenario of that mission headlessly (no GIF/window) and prints
+a comparison table - this is also the project's end-to-end test: a
+scenario that raises or never finishes (DNF) inside its `max_ticks` is a
+real bug.
 
-| name | what it changes | what it tests |
+### `rescue` (default)
+
+Search a grid for victims and rescue them; task allocation emerges from
+robots broadcasting claims over the radio bus. See
+[What it demonstrates](#what-it-demonstrates) above.
+
+| scenario | what it changes | what it tests |
 | --- | --- | --- |
-| `default` | 3 robots, 4 victims, 15×15, one scripted failure | the baseline demo above |
+| `default` | 3 robots, 4 victims, 15×15, one scripted failure | the baseline demo |
 | `many_victims` | same robots/map, 9 victims | claim contention when victims outnumber robots |
 | `robot_heavy` | 6 robots, 2 victims | over-provisioning / idle-robot behavior |
 | `large_map` | 25×25 map, 5 robots, 7 victims, one failure | scaling to a bigger map and swarm |
 | `double_failure` | robots 1 and 0 both fail (ticks 11 and 64) | resilience when the swarm loses most of its capacity |
 | `short_sensors` | `sensor_range` roughly halved (1.2) | how much perception range matters when claiming is peer-arbitrated |
 
-`python3 sim.py --compare` runs every scenario headlessly (no GIF/window)
-and prints a ticks-to-complete table - this is also the project's
-end-to-end test: a scenario that raises or never finishes (DNF) inside its
-`max_ticks` is a real bug.
+### `patrol`
+
+N robots split a shared border loop into contiguous arcs, computed from
+nothing but each robot's own id and the total robot count - no
+negotiation needed since every robot computes the same split
+independently. The cost of that simplicity: if a robot dies, nobody
+reassigns its arc, so it just goes unpatrolled.
+
+| scenario | what it changes | what it tests |
+| --- | --- | --- |
+| `default` | 4 robots patrol a 15×15 border, no failures | full coverage |
+| `robot_down` | robot 1 fails almost immediately (tick 3) | its whole arc goes unpatrolled forever - static assignment has no reflow |
+
+### `relay`
+
+N robots hold evenly-spaced positions between a fixed source and sink so
+every consecutive hop stays within `comm_range`, relaying a message end
+to end. Each robot's slot is a fixed function of its own id - again, no
+negotiation needed, and again no reflow if a robot dies.
+
+| scenario | what it changes | what it tests |
+| --- | --- | --- |
+| `default` | 3 robots hold a chain from corner to corner | the chain stays intact |
+| `robot_down` | the middle relay robot fails after settling in | the chain breaks exactly where it was - nobody closes the gap |
+
+### `wolfpack`
+
+N robots hunt one evasive prey that flees whichever robot is nearest once
+it notices one. A robot that spots the prey broadcasts the sighting, and
+every robot converges on the most recent sighting it's heard, whether it
+can currently see the prey or not - the one mission here where
+decentralized peer-to-peer sharing is a genuine strength, not a
+liability, since a robot dying doesn't erase what it already told
+everyone else.
+
+| scenario | what it changes | what it tests |
+| --- | --- | --- |
+| `default` | 3 robots hunt 1 prey, no failures | a straightforward hunt |
+| `robot_down` | the robot that first spots the prey fails right after reporting it | the trail survives - another robot picks up the chase from the broadcast sighting |
+
+### `capture_flag`
+
+Two teams (red/blue) race to touch the enemy's flag; a robot caught
+within `tag_range` of an enemy robot while on that enemy's side of the
+map respawns at its own start. Flag positions are common knowledge (no
+detection phase), so there's no task to allocate - every robot on both
+architectures just always heads for the enemy flag. This mission has the
+least architecture-comparison value of the five for exactly that reason:
+there's nothing for a Coordinator to decide differently.
+
+| scenario | what it changes | what it tests |
+| --- | --- | --- |
+| `default` | 3v3, symmetric starts | a fair fight |
+| `outnumbered` | red (2) vs blue (5) | more attackers *and* more incidental defenders |
 
 ## Why it's decentralized
 
-No process holds a global view of claims or arbitrates conflicts. Each
-robot only knows its own position, what its `sensor_range` detects, and
-what the radio has delivered to it. Removing a robot from the list in
-`sim.py` doesn't break the other two — the scripted failure of robot 1
-demonstrates exactly that within the scenario itself.
+No process holds a global view of the swarm's state or arbitrates
+conflicts. Each robot only knows its own position, what its sensors
+detect, and what the radio has delivered to it. Removing a robot from a
+scenario's robot list doesn't break the others - `rescue`'s and
+`wolfpack`'s scripted-failure scenarios demonstrate that directly;
+`patrol`'s and `relay`'s demonstrate the flip side of the same coin, where
+that same absence of a coordinator means nobody reflows a dead robot's
+work either.
 
 ## Toward a real multi-robot Nav2 stack
 
