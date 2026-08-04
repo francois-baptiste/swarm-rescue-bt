@@ -7,32 +7,50 @@ each robot independently applying the same rule to what it hears. A robot is
 scripted to fail mid-mission to show the swarm re-allocates its work without
 any external intervention.
 
-Run:  python3 sim.py         -> saves output/sar_swarm_demo.gif
-Run:  python3 sim.py --live  -> also opens an interactive matplotlib window
-                                 (map + per-robot BT state + position-vector
-                                 time series), requires a display
-Produces: output/sar_swarm_demo.gif and a text event log on stdout.
+Run:  python3 sim.py           -> saves output/sar_swarm_demo.gif
+Run:  python3 sim.py --live    -> also opens an interactive matplotlib window
+                                   that autoplays (map + one unfolded
+                                   behavior tree per robot, every node
+                                   color-coded by its py_trees status),
+                                   requires a display
+Run:  python3 sim.py --slider  -> opens the same window but paused, with a
+                                   tick slider (and Play/Pause button) to
+                                   scrub back and forth through the run by
+                                   hand, requires a display
+Produces: output/sar_swarm_demo.gif (skipped in --slider mode) and a text
+event log on stdout.
 """
 
 import sys
 
 LIVE = "--live" in sys.argv
+SLIDER = "--slider" in sys.argv
 
 import matplotlib
-if not LIVE:
-    # Agg is headless-safe (no display needed) for GIF-only runs; --live
-    # instead leaves the backend unset so matplotlib picks whatever GUI
-    # toolkit is installed, which is required for plt.show() to open a window.
+if not LIVE and not SLIDER:
+    # Agg is headless-safe (no display needed) for GIF-only runs; --live and
+    # --slider instead leave the backend unset so matplotlib picks whatever
+    # GUI toolkit is installed, which is required to open a window.
     matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.lines import Line2D
+from matplotlib.widgets import Slider, Button
 import numpy as np
+import py_trees
 
 from swarm.world import World
 from swarm.comms import Bus
 from swarm.robot import Robot
+
+Status = py_trees.common.Status
+STATUS_COLORS = {
+    Status.SUCCESS: "#2ca02c",
+    Status.RUNNING: "#ff7f0e",
+    Status.FAILURE: "#d62728",
+    Status.INVALID: "#7f7f7f",
+}
 
 MAX_TICKS = 220
 FAIL_ROBOT_ID = 1
@@ -59,23 +77,19 @@ def build_scenario():
     return world, bus, robots
 
 
-def _active_bt_path(robot):
-    """The branch of the tree that just fired, e.g. "PursueClaim >
-    NavigateToPose [RUNNING]", read off py_trees' own current_child chain
-    (root.tip()) rather than tracked separately - the tree is the source
-    of truth for its own active path."""
+def _tree_snapshot(robot):
+    """(depth, name, status) for every node in robot's tree, read off
+    py_trees' own node.status right after this tick - snapshotted per frame
+    because by render time the live tree only holds the final tick's state."""
     if robot.failed:
-        return "FAILED"
-    leaf = robot.tree.tip()
-    if leaf is None:
-        return "-"
-    names = []
-    node = leaf
-    while node is not None:
-        names.append(node.name)
-        node = node.parent
-    names.reverse()
-    return " > ".join(names[1:]) + f"  [{leaf.status.name}]"
+        return None
+
+    def walk(node, depth=0):
+        yield (depth, node.name, node.status)
+        for child in getattr(node, "children", []):
+            yield from walk(child, depth + 1)
+
+    return list(walk(robot.tree))
 
 
 def run(world, bus, robots):
@@ -96,7 +110,7 @@ def run(world, bus, robots):
             "positions": [r.pos for r in robots],
             "states": [r.state for r in robots],
             "trails": [list(r.trail) for r in robots],
-            "bt_active": [_active_bt_path(r) for r in robots],
+            "bt_snapshot": [_tree_snapshot(r) for r in robots],
             "victims": {vid: dict(v) for vid, v in world.victims.items()},
         })
 
@@ -121,12 +135,12 @@ def print_log(bus, world):
         print(f"victim {vid} @ {v['pose']}: {status}")
 
 
-def render(world, robots, frames, gif_path=None, live=False):
-    fig = plt.figure(figsize=(13, 7))
-    gs = fig.add_gridspec(2, 2, width_ratios=(2, 1), wspace=0.35, hspace=0.45)
+def render(world, robots, frames, gif_path=None, live=False, slider=False):
+    fig = plt.figure(figsize=(13, 9))
+    gs = fig.add_gridspec(3, 2, width_ratios=(2, 1), wspace=0.35, hspace=0.6,
+                           bottom=0.12 if slider else 0.05)
     ax_map = fig.add_subplot(gs[:, 0])
-    ax_bt = fig.add_subplot(gs[0, 1])
-    ax_vec = fig.add_subplot(gs[1, 1])
+    ax_trees = [fig.add_subplot(gs[rid, 1]) for rid in range(len(robots))]
     grid = np.array(world.grid)
 
     def draw(i):
@@ -185,35 +199,32 @@ def render(world, robots, frames, gif_path=None, live=False):
         ax_map.legend(handles=legend_handles, loc="upper center",
                       bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=8, frameon=False)
 
-        # ---- behavior tree state panel -----------------------------------
-        ax_bt.clear()
-        ax_bt.axis("off")
-        ax_bt.set_title("Behavior tree state", fontsize=10, weight="bold", loc="left")
-        for rid, path in enumerate(f["bt_active"]):
-            ax_bt.text(0.0, 0.9 - 0.12 * rid, f"R{rid}: {path}",
-                       color=robots[rid].color, fontsize=9, family="monospace",
-                       transform=ax_bt.transAxes, va="top")
-
-        # ---- position vector evolution (x/y over time per robot) --------
-        ax_vec.clear()
-        ax_vec.set_title("Position vector evolution", fontsize=10, weight="bold", loc="left")
-        for rid, trail in enumerate(f["trails"]):
-            xs = [p[0] for p in trail]
-            ys = [p[1] for p in trail]
-            ts = range(len(trail))
+        # ---- behavior tree panel, one per robot, fully unfolded ---------
+        for rid, ax in enumerate(ax_trees):
+            ax.clear()
+            ax.axis("off")
             color = robots[rid].color
-            ax_vec.plot(ts, xs, color=color, linestyle="-", linewidth=1.2)
-            ax_vec.plot(ts, ys, color=color, linestyle="--", linewidth=1.2)
-        ax_vec.set_xlim(0, len(frames))
-        ax_vec.set_ylim(-0.5, max(world.width, world.height) - 0.5)
-        ax_vec.set_xlabel("tick", fontsize=8)
-        ax_vec.set_ylabel("grid coordinate", fontsize=8)
-        ax_vec.tick_params(labelsize=7)
-        style_handles = [
-            Line2D([0], [0], color="gray", linestyle="-", label="x"),
-            Line2D([0], [0], color="gray", linestyle="--", label="y"),
-        ]
-        ax_vec.legend(handles=style_handles, loc="upper right", fontsize=7, frameon=False)
+            ax.set_title(f"R{rid} behavior tree", fontsize=9, weight="bold",
+                         loc="left", color=color)
+
+            snapshot = f["bt_snapshot"][rid]
+            if snapshot is None:
+                ax.text(0.0, 0.85, "FAILED", color=color, fontsize=9,
+                        family="monospace", weight="bold",
+                        transform=ax.transAxes, va="top")
+                continue
+
+            y = 0.95
+            dy = 0.9 / max(len(snapshot), 1)
+            for depth, name, status in snapshot:
+                ax.text(0.0, y, f"{'  ' * depth}{name}  [{status.name}]",
+                        color=STATUS_COLORS.get(status, "black"), fontsize=6.5,
+                        family="monospace", transform=ax.transAxes, va="top")
+                y -= dy
+
+    if slider:
+        _run_interactive(fig, draw, len(frames))
+        return
 
     anim = animation.FuncAnimation(fig, draw, frames=len(frames), interval=120)
     if gif_path:
@@ -221,6 +232,45 @@ def render(world, robots, frames, gif_path=None, live=False):
     if live:
         plt.show()
     plt.close(fig)
+
+
+def _run_interactive(fig, draw, n_frames):
+    """Tick slider + Play/Pause button, wired to the same draw(i) used by the
+    GIF/--live animation - scrubbing calls draw() exactly like a frame tick
+    would, so both paths render identically."""
+    slider_ax = fig.add_axes((0.15, 0.045, 0.55, 0.03))
+    tick_slider = Slider(slider_ax, "tick", 0, n_frames - 1, valinit=0, valstep=1)
+
+    play_ax = fig.add_axes((0.75, 0.035, 0.08, 0.05))
+    play_button = Button(play_ax, "Play")
+    playing = {"on": False}
+
+    def on_slider(val):
+        draw(int(tick_slider.val))
+        fig.canvas.draw_idle()
+
+    def toggle_play(event):
+        playing["on"] = not playing["on"]
+        play_button.label.set_text("Pause" if playing["on"] else "Play")
+
+    def advance():
+        if playing["on"]:
+            nxt = int(tick_slider.val) + 1
+            if nxt >= n_frames:
+                playing["on"] = False
+                play_button.label.set_text("Play")
+                return
+            tick_slider.set_val(nxt)  # triggers on_slider -> redraw
+
+    tick_slider.on_changed(on_slider)
+    play_button.on_clicked(toggle_play)
+
+    timer = fig.canvas.new_timer(interval=120)
+    timer.add_callback(advance)
+    timer.start()
+
+    draw(0)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -233,5 +283,7 @@ if __name__ == "__main__":
     print_log(bus, world)
     print(f"\nSimulation ran {len(frames)} ticks.")
 
-    render(world, robots, frames, gif_path="output/sar_swarm_demo.gif", live=LIVE)
-    print("Saved animation to output/sar_swarm_demo.gif")
+    gif_path = None if SLIDER else "output/sar_swarm_demo.gif"
+    render(world, robots, frames, gif_path=gif_path, live=LIVE, slider=SLIDER)
+    if gif_path:
+        print(f"Saved animation to {gif_path}")
