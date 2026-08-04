@@ -35,7 +35,19 @@ python3 sim.py
 ```
 
 Sortie : log texte des décisions (qui réclame quoi, qui secourt qui, la
-panne scriptée) + `output/sar_swarm_demo.gif` (animation matplotlib).
+panne scriptée) + `output/sar_swarm_demo.gif` (animation matplotlib). Le
+GIF est un petit tableau de bord : la carte (avec une flèche de
+déplacement par robot), la branche actuellement active de l'arbre de
+comportement de chaque robot (`R0: PursueClaim > NavigateToPose
+[RUNNING]`), et l'évolution du vecteur position (x/y) de chaque robot au
+cours du run.
+
+Ajoutez `--live` pour ouvrir aussi une fenêtre matplotlib interactive au
+lieu de seulement sauvegarder le GIF (nécessite un affichage) :
+
+```bash
+python3 sim.py --live
+```
 
 ## Pourquoi c'est décentralisé
 

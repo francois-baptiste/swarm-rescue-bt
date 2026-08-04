@@ -49,7 +49,17 @@ python3 sim.py
 
 This prints a text log of the robots' decisions (who claims what, who
 rescues whom, the scripted failure) and writes an animation to
-`output/sar_swarm_demo.gif`.
+`output/sar_swarm_demo.gif`. The animation itself is a small dashboard:
+the map (with a motion arrow per robot), each robot's currently active
+behavior-tree branch (`R0: PursueClaim > NavigateToPose  [RUNNING]`), and
+a time series of each robot's x/y position over the run.
+
+Add `--live` to also open an interactive matplotlib window instead of
+only saving the GIF (requires a display):
+
+```bash
+python3 sim.py --live
+```
 
 ## Why it's decentralized
 

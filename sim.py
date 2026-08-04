@@ -7,12 +7,23 @@ each robot independently applying the same rule to what it hears. A robot is
 scripted to fail mid-mission to show the swarm re-allocates its work without
 any external intervention.
 
-Run:  python3 sim.py
+Run:  python3 sim.py         -> saves output/sar_swarm_demo.gif
+Run:  python3 sim.py --live  -> also opens an interactive matplotlib window
+                                 (map + per-robot BT state + position-vector
+                                 time series), requires a display
 Produces: output/sar_swarm_demo.gif and a text event log on stdout.
 """
 
+import sys
+
+LIVE = "--live" in sys.argv
+
 import matplotlib
-matplotlib.use("Agg")
+if not LIVE:
+    # Agg is headless-safe (no display needed) for GIF-only runs; --live
+    # instead leaves the backend unset so matplotlib picks whatever GUI
+    # toolkit is installed, which is required for plt.show() to open a window.
+    matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -48,6 +59,25 @@ def build_scenario():
     return world, bus, robots
 
 
+def _active_bt_path(robot):
+    """The branch of the tree that just fired, e.g. "PursueClaim >
+    NavigateToPose [RUNNING]", read off py_trees' own current_child chain
+    (root.tip()) rather than tracked separately - the tree is the source
+    of truth for its own active path."""
+    if robot.failed:
+        return "FAILED"
+    leaf = robot.tree.tip()
+    if leaf is None:
+        return "-"
+    names = []
+    node = leaf
+    while node is not None:
+        names.append(node.name)
+        node = node.parent
+    names.reverse()
+    return " > ".join(names[1:]) + f"  [{leaf.status.name}]"
+
+
 def run(world, bus, robots):
     """Returns per-tick snapshots for rendering, and stops early once every
     victim is rescued."""
@@ -66,6 +96,7 @@ def run(world, bus, robots):
             "positions": [r.pos for r in robots],
             "states": [r.state for r in robots],
             "trails": [list(r.trail) for r in robots],
+            "bt_active": [_active_bt_path(r) for r in robots],
             "victims": {vid: dict(v) for vid, v in world.victims.items()},
         })
 
@@ -90,42 +121,56 @@ def print_log(bus, world):
         print(f"victim {vid} @ {v['pose']}: {status}")
 
 
-def render(world, frames, gif_path):
-    fig, ax = plt.subplots(figsize=(7, 7))
+def render(world, robots, frames, gif_path=None, live=False):
+    fig = plt.figure(figsize=(13, 7))
+    gs = fig.add_gridspec(2, 2, width_ratios=(2, 1), wspace=0.35, hspace=0.45)
+    ax_map = fig.add_subplot(gs[:, 0])
+    ax_bt = fig.add_subplot(gs[0, 1])
+    ax_vec = fig.add_subplot(gs[1, 1])
     grid = np.array(world.grid)
 
     def draw(i):
-        ax.clear()
-        ax.imshow(1 - grid, cmap="gray", vmin=0, vmax=1, origin="lower",
-                   extent=(-0.5, world.width - 0.5, -0.5, world.height - 0.5))
         f = frames[i]
+
+        # ---- map: grid, victims, trails, robots, motion vectors ---------
+        ax_map.clear()
+        ax_map.imshow(1 - grid, cmap="gray", vmin=0, vmax=1, origin="lower",
+                      extent=(-0.5, world.width - 0.5, -0.5, world.height - 0.5))
 
         for vid, v in f["victims"].items():
             x, y = v["pose"]
             if v["rescued"]:
-                ax.plot(x, y, marker="D", color="limegreen", markersize=10,
-                        markeredgecolor="black", zorder=3)
+                ax_map.plot(x, y, marker="D", color="limegreen", markersize=10,
+                            markeredgecolor="black", zorder=3)
             else:
-                ax.plot(x, y, marker="x", color="black", markersize=12,
-                        markeredgewidth=3, zorder=3)
+                ax_map.plot(x, y, marker="x", color="black", markersize=12,
+                            markeredgewidth=3, zorder=3)
 
         for rid, (pos, state, trail) in enumerate(
                 zip(f["positions"], f["states"], f["trails"])):
             color = robots[rid].color
             tx = [p[0] for p in trail]
             ty = [p[1] for p in trail]
-            ax.plot(tx, ty, color=color, alpha=0.25, linewidth=1.5, zorder=1)
-            marker = "X" if state == "FAILED" else "o"
-            ax.plot(*pos, marker=marker, color=color, markersize=16,
-                     markeredgecolor="black", zorder=4)
-            ax.annotate(f"R{rid}: {state}", pos, textcoords="offset points",
-                        xytext=(10, 8), fontsize=8, color=color, weight="bold")
+            ax_map.plot(tx, ty, color=color, alpha=0.25, linewidth=1.5, zorder=1)
 
-        ax.set_title(f"Decentralized SAR swarm - tick {f['t']}")
-        ax.set_xlim(-0.5, world.width - 0.5)
-        ax.set_ylim(-0.5, world.height - 0.5)
-        ax.set_xticks([])
-        ax.set_yticks([])
+            if len(trail) >= 2 and state != "FAILED":
+                (px, py), (cx, cy) = trail[-2], trail[-1]
+                if (px, py) != (cx, cy):
+                    ax_map.annotate("", xy=(cx, cy), xytext=(px, py),
+                                    arrowprops=dict(arrowstyle="-|>", color=color, lw=2),
+                                    zorder=5)
+
+            marker = "X" if state == "FAILED" else "o"
+            ax_map.plot(*pos, marker=marker, color=color, markersize=16,
+                        markeredgecolor="black", zorder=4)
+            ax_map.annotate(f"R{rid}: {state}", pos, textcoords="offset points",
+                            xytext=(10, 8), fontsize=8, color=color, weight="bold")
+
+        ax_map.set_title(f"Decentralized SAR swarm - tick {f['t']}")
+        ax_map.set_xlim(-0.5, world.width - 0.5)
+        ax_map.set_ylim(-0.5, world.height - 0.5)
+        ax_map.set_xticks([])
+        ax_map.set_yticks([])
 
         legend_handles = [
             Line2D([0], [0], marker="x", color="black", linestyle="",
@@ -137,11 +182,44 @@ def render(world, frames, gif_path):
             Line2D([0], [0], marker="X", color="gray", linestyle="",
                    markeredgecolor="black", markersize=11, label="Robot (failed)"),
         ]
-        ax.legend(handles=legend_handles, loc="upper center",
-                  bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=8, frameon=False)
+        ax_map.legend(handles=legend_handles, loc="upper center",
+                      bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=8, frameon=False)
+
+        # ---- behavior tree state panel -----------------------------------
+        ax_bt.clear()
+        ax_bt.axis("off")
+        ax_bt.set_title("Behavior tree state", fontsize=10, weight="bold", loc="left")
+        for rid, path in enumerate(f["bt_active"]):
+            ax_bt.text(0.0, 0.9 - 0.12 * rid, f"R{rid}: {path}",
+                       color=robots[rid].color, fontsize=9, family="monospace",
+                       transform=ax_bt.transAxes, va="top")
+
+        # ---- position vector evolution (x/y over time per robot) --------
+        ax_vec.clear()
+        ax_vec.set_title("Position vector evolution", fontsize=10, weight="bold", loc="left")
+        for rid, trail in enumerate(f["trails"]):
+            xs = [p[0] for p in trail]
+            ys = [p[1] for p in trail]
+            ts = range(len(trail))
+            color = robots[rid].color
+            ax_vec.plot(ts, xs, color=color, linestyle="-", linewidth=1.2)
+            ax_vec.plot(ts, ys, color=color, linestyle="--", linewidth=1.2)
+        ax_vec.set_xlim(0, len(frames))
+        ax_vec.set_ylim(-0.5, max(world.width, world.height) - 0.5)
+        ax_vec.set_xlabel("tick", fontsize=8)
+        ax_vec.set_ylabel("grid coordinate", fontsize=8)
+        ax_vec.tick_params(labelsize=7)
+        style_handles = [
+            Line2D([0], [0], color="gray", linestyle="-", label="x"),
+            Line2D([0], [0], color="gray", linestyle="--", label="y"),
+        ]
+        ax_vec.legend(handles=style_handles, loc="upper right", fontsize=7, frameon=False)
 
     anim = animation.FuncAnimation(fig, draw, frames=len(frames), interval=120)
-    anim.save(gif_path, writer=animation.PillowWriter(fps=8))
+    if gif_path:
+        anim.save(gif_path, writer=animation.PillowWriter(fps=8))
+    if live:
+        plt.show()
     plt.close(fig)
 
 
@@ -155,5 +233,5 @@ if __name__ == "__main__":
     print_log(bus, world)
     print(f"\nSimulation ran {len(frames)} ticks.")
 
-    render(world, frames, "output/sar_swarm_demo.gif")
+    render(world, robots, frames, gif_path="output/sar_swarm_demo.gif", live=LIVE)
     print("Saved animation to output/sar_swarm_demo.gif")
