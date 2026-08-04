@@ -136,6 +136,8 @@ changement de cet ensemble.
 | --- | --- | --- |
 | `default` | 4 robots patrouillent une bordure 15×15, aucune panne | couverture complète |
 | `robot_down` | le robot 1 tombe en panne presque immédiatement (tick 3) | le Coordinator remarque (après `FAILURE_TIMEOUT`) et rééquilibre la boucle entre les 3 survivants — **la couverture complète est récupérée** (52/52), contrairement à l'écart permanent de 43/52 de la branche décentralisée |
+| `double_failure` | les robots 1 et 2 tombent tous deux en panne (ticks 3 et 30) | le Coordinator rééquilibre jusqu'aux 2 survivants à chaque fois — **la couverture complète est récupérée deux fois** (52/52), juste plus lentement, contrairement à l'écart permanent d'environ la moitié de la boucle (40/52) de la branche décentralisée |
+| `large_map` | carte 25×25, 6 robots, aucune panne | passage à l'échelle sur une boucle et un essaim plus grands |
 
 ### `relay`
 
@@ -150,6 +152,8 @@ N robots couvraient sur moins de robots ne rentre pas toujours dans
 | --- | --- | --- |
 | `default` | 3 robots tiennent une chaîne coin à coin | la chaîne reste intacte |
 | `robot_down` | le robot relais du milieu tombe en panne une fois installé | le Coordinator réétale les 2 survivants sur tout le trajet, **réduisant le pire écart de 10.0 (branche décentralisée) à 7.07** — mieux, mais toujours au-dessus de `comm_range=6.0`, car 2 robots ne peuvent physiquement pas couvrir ce que 3 couvraient |
+| `double_failure` | 2 des 3 robots relais tombent en panne (ticks 25 et 35) | le Coordinator rééquilibre jusqu'au seul survivant — **réduit quand même l'écart** (10.0 contre 15.0 en décentralisé), mais un seul robot ne peut pas s'approcher de couvrir le trajet dans `comm_range` |
+| `long_chain` | carte 25×25, 5 robots, coin à coin | passage à l'échelle sur un trajet et un essaim plus grands |
 
 ### `wolfpack`
 
@@ -163,6 +167,8 @@ délai de propagation ni question de portée radio.
 | --- | --- | --- |
 | `default` | 3 robots chassent 1 proie, aucune panne | une chasse directe |
 | `robot_down` | le robot qui repère la proie en premier tombe en panne juste après l'avoir signalée | le signalement a déjà atteint le Coordinator, donc les autres robots agissent dessus au tick suivant — en pratique les chiffres de cette mission restent proches de ceux de la branche décentralisée, sa portée radio généreuse faisant rarement du délai de propagation le facteur limitant |
+| `many_hunters` | 5 robots chassent 1 proie, même carte | sur-provisionnement — mêmes 41 ticks que `default` ici aussi, confirmant que c'est la détection initiale qui domine, pas le mécanisme de partage des signalements |
+| `large_map` | carte 25×25, 5 robots chassent 1 proie | passage à l'échelle sur un terrain de chasse plus grand |
 
 ### `capture_flag`
 
@@ -178,6 +184,8 @@ précise (même code, mêmes résultats vérifiés).
 | --- | --- | --- |
 | `default` | 3 contre 3, départs symétriques | un combat équilibré |
 | `outnumbered` | rouge (2) contre bleu (5) | plus d'attaquants *et* plus de défenseurs incidents |
+| `many_v_many` | 5 contre 5, départs symétriques | plus d'attaquants/défenseurs simultanés des deux côtés — résultat identique vérifié avec la branche décentralisée ici aussi |
+| `large_map` | carte 25×25, 3 contre 3 | passage à l'échelle sur une course plus longue avec plus de place pour manœuvrer |
 
 ## Pourquoi c'est centralisé
 

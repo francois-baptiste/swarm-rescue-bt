@@ -128,6 +128,8 @@ whichever robots are still heartbeating whenever that set changes.
 | --- | --- | --- |
 | `default` | 4 robots patrol a 15×15 border, no failures | full coverage |
 | `robot_down` | robot 1 fails almost immediately (tick 3) | the Coordinator notices (after `FAILURE_TIMEOUT`) and rebalances the loop across the 3 survivors - **full coverage recovers** (52/52), unlike the decentralized branch's permanent 43/52 gap |
+| `double_failure` | robots 1 and 2 both fail (ticks 3 and 30) | the Coordinator rebalances down to the 2 survivors each time - **full coverage recovers twice over** (52/52), just slower, instead of the decentralized branch's permanent ~half-loop gap (40/52) |
+| `large_map` | 25×25 map, 6 robots, no failures | scaling to a bigger loop and swarm |
 
 ### `relay`
 
@@ -140,6 +142,8 @@ what N robots covered onto fewer doesn't always fit within `comm_range`.
 | --- | --- | --- |
 | `default` | 3 robots hold a chain from corner to corner | the chain stays intact |
 | `robot_down` | the middle relay robot fails after settling in | the Coordinator reflows the 2 survivors across the whole path, **shrinking the worst gap from the decentralized branch's 10.0 to 7.07** - better, but still over `comm_range=6.0`, since 2 robots physically can't cover what 3 did |
+| `double_failure` | 2 of 3 relay robots fail (ticks 25 and 35) | the Coordinator reflows down to the 1 survivor - **still shrinks the gap** (10.0 vs. the decentralized branch's 15.0), but 1 robot alone can't come close to spanning the path within `comm_range` |
+| `long_chain` | 25×25 map, 5 robots, corner to corner | scaling to a longer path and a bigger swarm |
 
 ### `wolfpack`
 
@@ -153,6 +157,8 @@ radio range" question.
 | --- | --- | --- |
 | `default` | 3 robots hunt 1 prey, no failures | a straightforward hunt |
 | `robot_down` | the robot that first spots the prey fails right after reporting it | the sighting already reached the Coordinator, so the other robots act on it next tick - in practice this mission's numbers end up close to the decentralized branch's, since its generous radio range rarely made propagation delay the bottleneck |
+| `many_hunters` | 5 robots hunt 1 prey, same map | over-provisioning - same 41 ticks as `default` here too, confirming it's initial detection that dominates, not the sighting-sharing mechanism |
+| `large_map` | 25×25 map, 5 robots hunt 1 prey | scaling to a bigger hunting ground |
 
 ### `capture_flag`
 
@@ -167,6 +173,8 @@ for exactly that reason (same code, verified same outcomes).
 | --- | --- | --- |
 | `default` | 3v3, symmetric starts | a fair fight |
 | `outnumbered` | red (2) vs blue (5) | more attackers *and* more incidental defenders |
+| `many_v_many` | 5v5, symmetric starts | more simultaneous attackers/defenders on both sides - verified identical outcome to the decentralized branch here too |
+| `large_map` | 25×25 map, 3v3 | scaling to a longer race with more room to maneuver |
 
 ## Why it's centralized
 

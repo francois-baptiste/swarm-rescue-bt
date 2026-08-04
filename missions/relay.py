@@ -48,6 +48,29 @@ SCENARIOS = {
         max_ticks=50,
         expect_intact=False,
     ),
+    "double_failure": dict(
+        description="Same map, but 2 of the 3 relay robots fail (ticks 25 and 35) - the "
+                     "Coordinator reflows down to the 1 survivor, who alone can't come close to "
+                     "spanning the whole path within comm_range.",
+        width=15, height=15,
+        source=(0, 0), sink=(14, 14),
+        starts=[(0, 0), (0, 0), (0, 0)],
+        comm_range=6.0,
+        failures=[(1, 25), (2, 35)],
+        max_ticks=60,
+        expect_intact=False,
+    ),
+    "long_chain": dict(
+        description="25x25 map, 5 robots relay corner to corner - tests scaling to a longer path "
+                     "and a bigger swarm.",
+        width=25, height=25,
+        source=(0, 0), sink=(24, 24),
+        starts=[(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)],
+        comm_range=9.0,
+        failures=[],
+        max_ticks=60,
+        expect_intact=True,
+    ),
 }
 
 
