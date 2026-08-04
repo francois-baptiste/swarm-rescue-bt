@@ -45,6 +45,27 @@ SCENARIOS = {
         fail_after_first_sighting=True,  # see run(): scheduled dynamically once known
         max_ticks=100,
     ),
+    "many_hunters": dict(
+        description="5 robots hunt one prey on the same map - tests over-provisioning: does more "
+                     "of the pack actually mean a much faster capture?",
+        width=15, height=15,
+        starts=[(0, 0), (14, 0), (7, 14), (14, 14), (0, 14)],
+        prey_start=(7, 7),
+        sensor_range=3.0, awareness_range=5.0, radio_range=30.0,
+        failures=[],
+        fail_after_first_sighting=False,
+        max_ticks=100,
+    ),
+    "large_map": dict(
+        description="25x25 map, 5 robots hunt one prey - tests scaling to a bigger hunting ground.",
+        width=25, height=25,
+        starts=[(0, 0), (24, 0), (12, 24), (0, 24), (24, 24)],
+        prey_start=(12, 12),
+        sensor_range=3.5, awareness_range=6.0, radio_range=40.0,
+        failures=[],
+        fail_after_first_sighting=False,
+        max_ticks=200,
+    ),
 }
 
 

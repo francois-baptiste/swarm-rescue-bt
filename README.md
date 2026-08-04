@@ -115,6 +115,8 @@ reassigns its arc, so it just goes unpatrolled.
 | --- | --- | --- |
 | `default` | 4 robots patrol a 15×15 border, no failures | full coverage |
 | `robot_down` | robot 1 fails almost immediately (tick 3) | its whole arc goes unpatrolled forever - static assignment has no reflow |
+| `double_failure` | robots 1 and 2 both fail (ticks 3 and 30) | roughly half the loop goes unpatrolled instead of a quarter |
+| `large_map` | 25×25 map, 6 robots, no failures | scaling to a bigger loop and swarm |
 
 ### `relay`
 
@@ -127,6 +129,8 @@ negotiation needed, and again no reflow if a robot dies.
 | --- | --- | --- |
 | `default` | 3 robots hold a chain from corner to corner | the chain stays intact |
 | `robot_down` | the middle relay robot fails after settling in | the chain breaks exactly where it was - nobody closes the gap |
+| `double_failure` | 2 of 3 relay robots fail (ticks 25 and 35) | only the robot closest to the source survives - one huge unbridged gap (15.0) instead of one broken link (10.0) |
+| `long_chain` | 25×25 map, 5 robots, corner to corner | scaling to a longer path and a bigger swarm |
 
 ### `wolfpack`
 
@@ -142,6 +146,8 @@ everyone else.
 | --- | --- | --- |
 | `default` | 3 robots hunt 1 prey, no failures | a straightforward hunt |
 | `robot_down` | the robot that first spots the prey fails right after reporting it | the trail survives - another robot picks up the chase from the broadcast sighting |
+| `many_hunters` | 5 robots hunt 1 prey, same map | over-provisioning - more of the pack doesn't obviously mean a faster capture (in practice: same 41 ticks as `default`, since initial detection dominates) |
+| `large_map` | 25×25 map, 5 robots hunt 1 prey | scaling to a bigger hunting ground |
 
 ### `capture_flag`
 
@@ -157,6 +163,8 @@ there's nothing for a Coordinator to decide differently.
 | --- | --- | --- |
 | `default` | 3v3, symmetric starts | a fair fight |
 | `outnumbered` | red (2) vs blue (5) | more attackers *and* more incidental defenders |
+| `many_v_many` | 5v5, symmetric starts | more simultaneous attackers/defenders on both sides - more skirmishes near the midline |
+| `large_map` | 25×25 map, 3v3 | scaling to a longer race with more room to maneuver |
 
 ## Why it's decentralized
 

@@ -117,6 +117,8 @@ ne réassigne son arc, qui reste donc non patrouillé.
 | --- | --- | --- |
 | `default` | 4 robots patrouillent une bordure 15×15, aucune panne | couverture complète |
 | `robot_down` | le robot 1 tombe en panne presque immédiatement (tick 3) | tout son arc reste non patrouillé pour toujours — l'assignation statique n'a pas de réallocation |
+| `double_failure` | les robots 1 et 2 tombent tous deux en panne (ticks 3 et 30) | environ la moitié de la boucle reste non patrouillée au lieu d'un quart |
+| `large_map` | carte 25×25, 6 robots, aucune panne | passage à l'échelle sur une boucle et un essaim plus grands |
 
 ### `relay`
 
@@ -130,6 +132,8 @@ négociation, et là encore pas de réallocation si un robot meurt.
 | --- | --- | --- |
 | `default` | 3 robots tiennent une chaîne coin à coin | la chaîne reste intacte |
 | `robot_down` | le robot relais du milieu tombe en panne une fois installé | la chaîne casse exactement là où il était — personne ne referme l'écart |
+| `double_failure` | 2 des 3 robots relais tombent en panne (ticks 25 et 35) | seul le robot le plus proche de la source survit — un immense écart non comblé (15.0) au lieu d'un seul lien cassé (10.0) |
+| `long_chain` | carte 25×25, 5 robots, coin à coin | passage à l'échelle sur un trajet et un essaim plus grands |
 
 ### `wolfpack`
 
@@ -145,6 +149,8 @@ autres.
 | --- | --- | --- |
 | `default` | 3 robots chassent 1 proie, aucune panne | une chasse directe |
 | `robot_down` | le robot qui repère la proie en premier tombe en panne juste après l'avoir signalée | la piste survit — un autre robot reprend la chasse à partir du signalement diffusé |
+| `many_hunters` | 5 robots chassent 1 proie, même carte | sur-provisionnement — plus de robots dans la meute ne veut pas forcément dire capture plus rapide (en pratique : mêmes 41 ticks que `default`, la détection initiale dominant) |
+| `large_map` | carte 25×25, 5 robots chassent 1 proie | passage à l'échelle sur un terrain de chasse plus grand |
 
 ### `capture_flag`
 
@@ -162,6 +168,8 @@ différemment.
 | --- | --- | --- |
 | `default` | 3 contre 3, départs symétriques | un combat équilibré |
 | `outnumbered` | rouge (2) contre bleu (5) | plus d'attaquants *et* plus de défenseurs incidents |
+| `many_v_many` | 5 contre 5, départs symétriques | plus d'attaquants/défenseurs simultanés des deux côtés — plus d'escarmouches près de la ligne médiane |
+| `large_map` | carte 25×25, 3 contre 3 | passage à l'échelle sur une course plus longue avec plus de place pour manœuvrer |
 
 ## Pourquoi c'est décentralisé
 

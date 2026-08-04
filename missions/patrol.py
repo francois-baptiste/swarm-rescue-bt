@@ -38,6 +38,23 @@ SCENARIOS = {
         max_ticks=80,
         expect_full_coverage=False,
     ),
+    "double_failure": dict(
+        description="Same map, but robots 1 and 2 both fail early (ticks 3 and 30) - roughly half "
+                     "the loop goes permanently unpatrolled instead of a quarter.",
+        width=15, height=15,
+        starts=[(0, 0), (14, 0), (14, 14), (0, 14)],
+        failures=[(1, 3), (2, 30)],
+        max_ticks=80,
+        expect_full_coverage=False,
+    ),
+    "large_map": dict(
+        description="25x25 map, 6 robots, no failures - tests scaling to a bigger loop and swarm.",
+        width=25, height=25,
+        starts=[(0, 0), (24, 0), (24, 24), (0, 24), (12, 0), (12, 24)],
+        failures=[],
+        max_ticks=150,
+        expect_full_coverage=True,
+    ),
 }
 
 

@@ -39,6 +39,26 @@ SCENARIOS = {
         tag_range=1.5,
         max_ticks=100,
     ),
+    "many_v_many": dict(
+        description="5v5 on the same map - more simultaneous attackers and incidental defenders "
+                     "on both sides means more skirmishes near the midline.",
+        width=15, height=15,
+        red_home=(0, 0), blue_home=(14, 14),
+        red_starts=[(0, 0), (0, 1), (1, 0), (0, 2), (2, 0)],
+        blue_starts=[(14, 14), (14, 13), (13, 14), (14, 12), (12, 14)],
+        tag_range=1.5,
+        max_ticks=100,
+    ),
+    "large_map": dict(
+        description="25x25 map, 3v3 - tests scaling to a longer race with more room to maneuver "
+                     "around the midline.",
+        width=25, height=25,
+        red_home=(0, 0), blue_home=(24, 24),
+        red_starts=[(0, 0), (0, 1), (1, 0)],
+        blue_starts=[(24, 24), (24, 23), (23, 24)],
+        tag_range=1.5,
+        max_ticks=180,
+    ),
 }
 
 
